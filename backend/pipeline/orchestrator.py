@@ -11,11 +11,8 @@ from backend.pipeline import (
     view_analyzer,
     object_detector,
     feature_detector,
-    reconstruction,
+    feature_detector,
     scale_calibration,
-    geometry_refiner,
-    assembly_analyzer,
-    cad_generator,
     drawing_generator,
     validator,
 )
@@ -27,11 +24,8 @@ STAGES: list[str] = [
     "view_analysis",
     "object_detection",
     "feature_detection",
-    "reconstruction",
+    "feature_detection",
     "scale_calibration",
-    "geometry_refine",
-    "assembly",
-    "cad_generation",
     "drawing_generation",
     "validation",
 ]
@@ -206,40 +200,15 @@ def run_job(job_id: str) -> Job:
                 elif stage_name == "feature_detection":
                     out = feature_detector.detect(job.normalized_images)
                     res[stage_name] = out
-                elif stage_name == "reconstruction":
-                    out = reconstruction.reconstruct(
-                        job.normalized_images,
-                        view=res.get("view_analysis"),
-                        objects=res.get("object_detection"),
-                        features=res.get("feature_detection"),
-                        job_id=job.job_id
-                    )
-                    res[stage_name] = out
                 elif stage_name == "scale_calibration":
-                    recon = res.get("reconstruction", {})
-                    out = scale_calibration.calibrate(recon, [d.model_dump() for d in job.known_dimensions], job.units.value, features=res.get("feature_detection"))
-                    res[stage_name] = out
-                elif stage_name == "geometry_refine":
-                    recon = res.get("reconstruction", {})
-                    scale_cal = res.get("scale_calibration", {})
-                    out = geometry_refiner.refine(recon, scale_cal)
-                    res[stage_name] = out
-                elif stage_name == "assembly":
-                    recon = res.get("reconstruction", {})
-                    comps = res.get("object_detection", {}).get("components", [])
                     features = res.get("feature_detection", {})
-                    out = assembly_analyzer.analyze(recon, comps, images=job.normalized_images, features=features)
-                    res[stage_name] = out
-                elif stage_name == "cad_generation":
-                    refined = res.get("geometry_refine", {})
-                    measurements = res.get("scale_calibration", {}).get("measurements", [])
-                    features = res.get("feature_detection", {})
-                    out = cad_generator.generate(refined, measurements, features)
+                    out = scale_calibration.calibrate(features, [d.model_dump() for d in job.known_dimensions], job.units.value)
                     res[stage_name] = out
                 elif stage_name == "drawing_generation":
-                    cad = res.get("cad_generation", {})
+                    features = res.get("feature_detection", {})
                     measurements = res.get("scale_calibration", {}).get("measurements", [])
-                    out = drawing_generator.generate(cad, measurements)
+                    scale_factor = res.get("scale_calibration", {}).get("scale_factor", 1.0)
+                    out = drawing_generator.generate(features, measurements, scale_factor)
                     res[stage_name] = out
 
 
@@ -247,7 +216,7 @@ def run_job(job_id: str) -> Job:
                 job = job_manager.update_job(job_id, result=res, stages=job.stages, warnings=job.warnings)
             
             # Export files
-            from backend.exporters import dxf_exporter, cad_exporter
+            from backend.exporters import dxf_exporter
             from backend.core.config import settings
             from backend.models.job_models import OutputRecord
             from pathlib import Path
@@ -260,11 +229,6 @@ def run_job(job_id: str) -> Job:
                 dxf_path = out_dir / "drawing.dxf"
                 dxf_exporter.write(res["drawing_generation"], dxf_path)
                 new_outputs.append(OutputRecord(kind="dxf", path=str(dxf_path), filename="drawing.dxf"))
-                
-            if "cad_generation" in res:
-                stl_path = out_dir / "model.stl"
-                cad_exporter.write(res["cad_generation"], stl_path)
-                new_outputs.append(OutputRecord(kind="mesh", path=str(stl_path), filename="model.stl"))
                 
             job.outputs = new_outputs
             

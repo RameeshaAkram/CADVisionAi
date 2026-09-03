@@ -1,5 +1,4 @@
 import React from 'react';
-import DimensionLine from './DimensionLine';
 
 interface OrthoViewProps {
   view: any;
@@ -8,47 +7,31 @@ interface OrthoViewProps {
 export default function OrthoView({ view }: OrthoViewProps) {
   const getStrokeStyle = (role: string) => {
     switch (role) {
-      case 'hidden':
-        return { stroke: '#4A4642', strokeWidth: 1, strokeDasharray: '4 4' };
-      case 'center':
-        return { stroke: '#1B1917', strokeWidth: 0.75, strokeDasharray: '6 2 2 2' };
-      case 'outline':
+      case 'hole':
+        return { stroke: '#E11D48', strokeWidth: 1.5 }; // Rose-600
+      case 'outer':
       default:
-        return { stroke: '#1B1917', strokeWidth: 1.5 };
+        return { stroke: '#1B1917', strokeWidth: 2 }; // Dark stone
     }
   };
 
   return (
     <g>
-      {/* Lines */}
-      {view.lines && view.lines.map((line: any, i: number) => (
-        <line 
-          key={`line-${i}`}
-          x1={line.x1} 
-          y1={line.y1} 
-          x2={line.x2} 
-          y2={line.y2} 
-          {...getStrokeStyle(line.role)}
-          fill="none"
-        />
-      ))}
+      {/* Polylines */}
+      {view.polylines && view.polylines.map((poly: any, i: number) => {
+        if (!poly.points || poly.points.length === 0) return null;
+        const d = poly.points.map((p: any, idx: number) => 
+          `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+        ).join(' ') + (poly.is_closed ? ' Z' : '');
 
-      {/* Circles */}
-      {view.circles && view.circles.map((circle: any, i: number) => (
-        <circle 
-          key={`circle-${i}`}
-          cx={circle.cx} 
-          cy={circle.cy} 
-          r={circle.r} 
-          {...getStrokeStyle(circle.role)}
-          fill="none"
-        />
-      ))}
-
-      {/* Dimensions */}
-      {view.dimensions && view.dimensions.map((dim: any, i: number) => {
-        if (dim.level === 'low') return null;
-        return <DimensionLine key={`dim-${i}`} dim={dim} />;
+        return (
+          <path
+            key={`poly-${i}`}
+            d={d}
+            {...getStrokeStyle(poly.role)}
+            fill="none"
+          />
+        );
       })}
     </g>
   );

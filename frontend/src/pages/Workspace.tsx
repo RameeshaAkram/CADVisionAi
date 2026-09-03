@@ -5,7 +5,7 @@ import { getJobStatus, startProcessing } from '../api/jobs';
 import { Tabs, Tab } from '../components/ui/Tabs';
 import { Button } from '../components/ui/Button';
 import { RotateCcw, BoxSelect, Maximize, Hash } from 'lucide-react';
-import PreviewModel from '../components/viewport/PreviewModel';
+
 import MeasurementsList from '../components/MeasurementsList';
 import DrawingSheet from '../components/drawing/DrawingSheet';
 import ExportPopover from '../components/results/ExportPopover';
@@ -13,7 +13,7 @@ import { getConfidenceTheme } from '../lib/confidence';
 
 export default function Workspace() {
   const { jobId } = useParams<{ jobId: string }>();
-  const [activeTab, setActiveTab] = useState<'3D' | '2D'>('3D');
+  const [activeTab, setActiveTab] = useState<'2D'>('2D');
   const [showDimensions, setShowDimensions] = useState(true);
   const [showAddViews, setShowAddViews] = useState(false);
 
@@ -55,45 +55,14 @@ export default function Workspace() {
           </button>
         </div>
 
-        {/* Parts */}
-        {status?.assembly && (
-          <div className="w-[264px] bg-[var(--surface)] p-4 flex flex-col overflow-y-auto">
-            <div className="text-[10px] font-bold text-[var(--g-500)] uppercase tracking-wider mb-4">Parts</div>
-            <div className="flex flex-col gap-2">
-              {status.assembly.parts.map((part: any) => (
-                <div key={part.id} className="flex items-center gap-2.5 p-2 rounded-[4px] hover:bg-[var(--g-800)] cursor-pointer group border border-transparent hover:border-[var(--g-700)] transition-colors">
-                  <div className="w-3 h-3 rounded-[2px]" style={{ backgroundColor: part.color }} />
-                  <div className="text-[13px] font-medium text-[var(--g-100)] flex-1 leading-none">{part.label}</div>
-                  {part.confidence < 0.8 && <span className="text-[12px] text-[var(--amber-400)] leading-none" title="Low confidence part">⚠</span>}
-                </div>
-              ))}
-            </div>
-            
-            {status.assembly.relationships?.length > 0 && (
-              <div className="mt-6 pt-4 border-t border-[var(--g-700)] flex flex-col gap-3">
-                {status.assembly.relationships.map((rel: any, idx: number) => {
-                  const partA = status.assembly.parts.find((p: any) => p.id === rel.a)?.label || rel.a;
-                  const partB = status.assembly.parts.find((p: any) => p.id === rel.b)?.label || rel.b;
-                  const kind = rel.kind.replace('_', ' ');
-                  return (
-                    <div key={idx} className="text-[12px] leading-[16px] text-[var(--g-300)]">
-                      <span className="text-white font-medium">{partA}</span> {kind} <span className="text-white font-medium">{partB}</span>
-                      {rel.confidence < 0.7 && <span className="text-[var(--amber-400)] block mt-0.5">· {kind} (low confidence)</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+
       </div>
 
       {/* Center Viewport */}
       <div className={`flex-1 flex flex-col min-w-0 relative ${activeTab === '2D' ? 'paper-scope' : 'bg-[var(--bg)]'}`}>
         <div className="px-3 pt-2 z-20 relative bg-inherit">
           <Tabs>
-            <Tab selected={activeTab === '3D'} onClick={() => setActiveTab('3D')}>3D model</Tab>
-            <Tab selected={activeTab === '2D'} onClick={() => setActiveTab('2D')}>2D drawing</Tab>
+            <Tab selected={true} onClick={() => setActiveTab('2D')}>2D drawing</Tab>
           </Tabs>
         </div>
 
@@ -113,24 +82,7 @@ export default function Workspace() {
             <Button variant="ghost" className="w-[28px] h-[28px] p-0"><Maximize className="w-4 h-4" /></Button>
           </div>
 
-          {activeTab === '3D' ? (
-            <>
-              {status?.preview_url ? (
-                <PreviewModel 
-                  url={`http://localhost:8000${status.preview_url}`} 
-                  status={status}
-                  showDimensions={showDimensions}
-                />
-              ) : (
-                <div className="text-[var(--g-400)] font-data text-[13px] text-center max-w-[40ch] z-10">
-                  {status?.status === 'completed' || status?.status === 'needs_more_views' ? 
-                    "No 3D preview yet." : "Reconstruction in progress..."}
-                </div>
-              )}
-            </>
-          ) : (
             <DrawingSheet jobId={jobId!} createdAt={status?.created_at} />
-          )}
 
           {/* Add Views Panel */}
           {showAddViews && status && (

@@ -27,7 +27,6 @@ class JobStatus(str, Enum):
 
 class JobMode(str, Enum):
     PHOTO = "photo"
-    VIDEO = "video"
 
 
 class UnitType(str, Enum):
@@ -47,7 +46,7 @@ class KnownDimension(BaseModel):
 class FileMeta(BaseModel):
     filename: str
     stored_path: str
-    kind: Literal["image", "video"]
+    kind: Literal["image"]
     bytes: int
     width: int | None = None
     height: int | None = None

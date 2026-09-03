@@ -77,13 +77,11 @@ def _job_to_public(job) -> JobPublic:
     )
 
 
-def _classify_file(filename: str) -> Literal["image", "video", "unknown"]:
-    """Classify a file as image, video, or unknown by extension."""
+def _classify_file(filename: str) -> Literal["image", "unknown"]:
+    """Classify a file as image or unknown by extension."""
     ext = Path(filename).suffix.lstrip(".").lower()
     if ext in settings.ALLOWED_IMAGE_TYPES:
         return "image"
-    if ext in settings.ALLOWED_VIDEO_TYPES:
-        return "video"
     return "unknown"
 
 
@@ -118,7 +116,7 @@ def _parse_known_dimensions(raw: str) -> list[KnownDimension]:
 async def _read_and_save_files(
     job_id: str,
     files: list[UploadFile],
-    expected_kind: Literal["image", "video"],
+    expected_kind: Literal["image"],
 ) -> tuple[list[FileMeta], list[str]]:
     """Validate, read, and save uploaded files.  Returns (file_metas, warnings)."""
     metas: list[FileMeta] = []
@@ -127,14 +125,6 @@ async def _read_and_save_files(
     for uf in files:
         kind = _classify_file(uf.filename or "unknown")
 
-        if expected_kind == "image" and kind == "video":
-            raise ValidationError(
-                f"Photo mode does not accept video files ({uf.filename})"
-            )
-        if expected_kind == "video" and kind == "image":
-            raise ValidationError(
-                f"Video mode does not accept image files ({uf.filename})"
-            )
         if kind == "unknown":
             raise ValidationError(
                 f"File type not allowed: {uf.filename}"
@@ -182,12 +172,11 @@ async def create_job(
 
     job_mode = JobMode(mode)
 
-    if job_mode == JobMode.VIDEO and len(files) != 1:
-        raise ValidationError("Video mode requires exactly one video file")
+
 
     # Pre-generate job_id so files are saved into uploads/{job_id}/
     job_id = uuid.uuid4().hex
-    expected_kind: Literal["image", "video"] = "image" if job_mode == JobMode.PHOTO else "video"
+    expected_kind: Literal["image", "video"] = "image"
     metas, warnings = await _read_and_save_files(job_id, files, expected_kind)
 
     job = job_manager.create_job(

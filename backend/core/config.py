@@ -16,6 +16,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # Application
@@ -38,16 +39,11 @@ class Settings(BaseSettings):
     # Upload constraints (used by later segments)
     MAX_UPLOAD_MB: int = 100
     ALLOWED_IMAGE_TYPES: list[str] = ["jpeg", "jpg", "png", "webp"]
-    ALLOWED_VIDEO_TYPES: list[str] = ["mp4", "mov", "webm"]
 
-    # Preprocessing & Frame Extraction
     PREPROCESS_MAX_SIDE: int = 1600
-    MAX_FRAMES_TO_EXTRACT: int = 40
     BLUR_THRESHOLD: float = 100.0  # Minimum Laplacian variance
     MIN_DIMENSION: int = 256       # Reject smaller images
     
-    FRAME_SAMPLE_FPS: int = 5
-    MAX_EXTRACTED_FRAMES: int = 30
     DUPLICATE_HASH_THRESHOLD: float = 10.0
     
     # Segment 6: View & feature analysis

@@ -1,181 +1,64 @@
-"""Segment 8 — Scale Calibration"""
+"""Segment 8 — Scale Calibration (2D)."""
 
-import statistics
-from backend.core.config import settings
-from backend.utils import geometry_utils
-
-def calibrate(reconstruction: dict, known_dimensions: list, units: str, features: dict = None) -> dict:
+def calibrate(features: dict, known_dimensions: list, units: str) -> dict:
+    """Calculate pixel-to-real-world scale based on a known dimension."""
     if not known_dimensions:
         return {
-            "scale_factor": None,
+            "scale_factor": 1.0,
             "units": units,
             "measurements": [],
-            "consistency": None,
-            "warnings": ["No known dimension provided. The model is in relative units and can't be measured."]
+            "warnings": ["No known dimension provided. The drawing will be exported in pixel units."]
         }
         
-    bounds = reconstruction.get("bounds")
-    if not bounds:
+    contours = features.get("contours", [])
+    outer_contour = next((c for c in contours if c["role"] == "outer"), None)
+    
+    if not outer_contour or not outer_contour.get("points"):
         return {
-            "scale_factor": None,
+            "scale_factor": 1.0,
             "units": units,
             "measurements": [],
-            "consistency": None,
-            "warnings": ["Mesh bounds missing; cannot calibrate scale."]
+            "warnings": ["No outer contour found to calibrate against."]
         }
         
-    extents = geometry_utils.aabb_extents(bounds)
-    if not extents or sum(extents.values()) == 0:
+    points = outer_contour["points"]
+    min_x = min(p["x"] for p in points)
+    max_x = max(p["x"] for p in points)
+    min_y = min(p["y"] for p in points)
+    max_y = max(p["y"] for p in points)
+    
+    pixel_width = max_x - min_x
+    pixel_height = max_y - min_y
+    
+    # We use the first known dimension provided by the user.
+    kd = known_dimensions[0]
+    
+    # Simple heuristic: if label says "height", we map to height, else width
+    if "height" in kd["label"].lower() or "tall" in kd["label"].lower():
+        pixel_val = pixel_height
+        axis = "y"
+    else:
+        pixel_val = pixel_width
+        axis = "x"
+        
+    if pixel_val <= 0:
         return {
-            "scale_factor": None,
+            "scale_factor": 1.0,
             "units": units,
             "measurements": [],
-            "consistency": None,
-            "warnings": ["Mesh bounds are zero; cannot calibrate scale."]
+            "warnings": ["Invalid pixel dimension for calibration."]
         }
         
-    scale_factors = []
-    mapped_knowns = []
-    warnings = []
+    scale_factor = kd["value"] / pixel_val
     
-    for kd in known_dimensions:
-        axis = geometry_utils.choose_axis(kd["label"], extents)
-        if axis and extents[axis] > 0:
-            sf = kd["value"] / extents[axis]
-            scale_factors.append(sf)
-            mapped_knowns.append({"label": kd["label"], "value": kd["value"], "axis": axis})
-            
-    if not scale_factors:
-        return {
-            "scale_factor": None,
-            "units": units,
-            "measurements": [],
-            "consistency": None,
-            "warnings": ["No known dimension could be applied."]
-        }
-        
-    consistency = None
-    scale_factor = scale_factors[0]
+    measurements = [
+        {"id": "dim-1", "label": "Overall Width", "value": pixel_width * scale_factor, "level": "measured"},
+        {"id": "dim-2", "label": "Overall Height", "value": pixel_height * scale_factor, "level": "measured"}
+    ]
     
-    if len(scale_factors) > 1:
-        min_sf = min(scale_factors)
-        max_sf = max(scale_factors)
-        consistency = 1.0 - (max_sf - min_sf) / max_sf if max_sf > 0 else 0.0
-        
-        scale_factor = statistics.median(scale_factors)
-        if consistency is not None and consistency < (1.0 - settings.SCALE_MISMATCH_PCT):
-            warnings.append("Known dimensions disagree by more than 10%. Check which measurement matches height vs width.")
-            
-    measurements = []
-    used_axes = {k["axis"]: k for k in mapped_knowns}
-    
-    recon_conf = reconstruction.get("confidence", 0.0)
-    
-    for axis, label_default in [("x", "Width"), ("y", "Height"), ("z", "Depth")]:
-        if axis in used_axes:
-            k = used_axes[axis]
-            measurements.append({
-                "id": k["label"].lower().replace(" ", "_"),
-                "label": k["label"].capitalize(),
-                "value": k["value"],
-                "min": None,
-                "max": None,
-                "tolerance": None,
-                "units": units,
-                "level": "measured",
-                "source": "user_known",
-                "glyph": "measured"
-            })
-        else:
-            val = extents[axis] * scale_factor
-            
-            if recon_conf >= 0.35:
-                tol = max(0.01 * val, val * (1.0 - recon_conf))
-                if len(scale_factors) > 1 and consistency is not None:
-                    tol = max(tol, val * (1.0 - consistency))
-                    
-                measurements.append({
-                    "id": label_default.lower(),
-                    "label": label_default,
-                    "value": val,
-                    "min": val - tol,
-                    "max": val + tol,
-                    "tolerance": tol,
-                    "units": units,
-                    "level": "estimated",
-                    "source": "scaled_aabb",
-                    "glyph": "estimated"
-                })
-            else:
-                measurements.append({
-                    "id": label_default.lower(),
-                    "label": label_default,
-                    "value": None,
-                    "min": val * 0.8,
-                    "max": val * 1.2,
-                    "tolerance": None,
-                    "units": units,
-                    "level": "low",
-                    "source": "scaled_aabb",
-                    "glyph": "low"
-                })
-                
-    if recon_conf < 0.35 or reconstruction.get("method") == "visual_hull":
-        warnings.append("Depth is inferred from the bounding box. Underside / far side was not visible.")
-        
-    if reconstruction.get("warnings"):
-        warnings.extend(reconstruction["warnings"])
-        
-    if features and features.get("circles"):
-        circles = features.get("circles", [])
-        image_width = features.get("image_width", 800) # Fallback
-        
-        for i, c in enumerate(circles):
-            r_px = c.get("r", 0)
-            views = c.get("views", 1)
-            
-            if r_px > 0:
-                relative_r = r_px / image_width * max(extents.get("x", 0), extents.get("z", 0))
-                diameter = 2 * relative_r * scale_factor
-                
-                level = "estimated" if views >= 2 else "low"
-                
-                if level == "estimated":
-                    tol = max(0.02 * diameter, diameter * 0.15)
-                    measurements.append({
-                        "id": f"hole_{i}",
-                        "label": f"Hole {i+1} diameter",
-                        "value": diameter,
-                        "min": diameter - tol,
-                        "max": diameter + tol,
-                        "tolerance": tol,
-                        "units": units,
-                        "level": "estimated",
-                        "source": "feature_multi_view",
-                        "glyph": "estimated"
-                    })
-                else:
-                    measurements.append({
-                        "id": f"hole_{i}",
-                        "label": f"Hole {i+1} diameter",
-                        "value": None,
-                        "min": diameter * 0.8,
-                        "max": diameter * 1.2,
-                        "tolerance": None,
-                        "units": units,
-                        "level": "low",
-                        "source": "feature_single_view",
-                        "glyph": "low"
-                    })
-        warnings.append("Hole diameters are approximate; cameras are not metrology-calibrated.")
-            
-    # Deduplicate warnings
-    warnings = list(dict.fromkeys(warnings))
-            
     return {
         "scale_factor": scale_factor,
         "units": units,
         "measurements": measurements,
-        "consistency": consistency,
-        "warnings": warnings
+        "warnings": []
     }

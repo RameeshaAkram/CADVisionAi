@@ -12,7 +12,7 @@ from backend.models.job_models import (
     NormalizedImageSet,
     SkippedImage,
 )
-from backend.pipeline import frame_extractor, image_preprocessor
+from backend.pipeline import image_preprocessor
 from backend.storage import file_manager, job_manager
 from backend.utils import image_utils
 
@@ -39,35 +39,7 @@ def prepare_images(job_id: str) -> NormalizedImageSet:
 
     out_idx = 1
     
-    if job.mode == JobMode.VIDEO:
-        frames, ext_warnings = frame_extractor.extract(job)
-        for w in ext_warnings:
-            if w not in warnings:
-                warnings.append(w)
-                
-        for f in frames:
-            try:
-                processed = image_preprocessor.process(f.image)
-                filename = f"{out_idx:04d}.jpg"
-                out_path = norm_dir / filename
-                image_utils.save_image(str(out_path), processed)
-                
-                h, w = processed.shape[:2]
-                sharpness = image_utils.sharpness_score(processed)
-                
-                normalized_images.append(NormalizedImage(
-                    index=out_idx,
-                    filename=filename,
-                    stored_path=str(out_path),
-                    width=w,
-                    height=h,
-                    sharpness=sharpness
-                ))
-                out_idx += 1
-            except Exception as e:
-                skipped.append(SkippedImage(reason="process_error", detail=str(e)))
-                
-    elif job.mode == JobMode.PHOTO:
+    if job.mode == JobMode.PHOTO:
         for f_meta in job.files:
             if f_meta.kind != "image":
                 skipped.append(SkippedImage(reason="wrong_kind", detail=f"Skipping non-image {f_meta.filename}"))
