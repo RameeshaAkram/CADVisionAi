@@ -1,0 +1,297 @@
+/* ============================================================
+   CAD AI — Design Tokens
+   Concept: "Machine & Drawing"
+   The app chrome is machined graphite. The output is paper.
+   Measurement is cyan ink. Uncertainty is amber. Failure is vermilion.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ---------- Graphite (machine chrome) ---------- */
+    --g-950: #0D0C0B;   /* app + viewport background */
+    --g-900: #141312;   /* panel background */
+    --g-850: #1B1917;   /* raised surface, cards */
+    --g-800: #232120;   /* inputs, hovered surface */
+    --g-700: #33302D;   /* strong border, disabled fill */
+    --g-600: #4A4642;   /* border on raised surface */
+    --g-500: #6E6862;   /* muted icon, disabled text */
+    --g-400: #928B84;   /* tertiary text */
+    --g-300: #B5AEA6;   /* secondary text */
+    --g-100: #E4E0D9;   /* primary text */
+
+    /* ---------- Paper (output surfaces + primary action) ---------- */
+    --paper:      #EDEAE3;
+    --paper-hi:   #FFFFFF;
+    --paper-lo:   #D9D5CC;
+    --paper-line: #DAD5CB;  /* grid lines on the drawing sheet */
+
+    /* ---------- Cyan: interactive + measured / high confidence ---------- */
+    --cyan-400:  #5AD9E8;   /* text + lines on dark */
+    --cyan-500:  #2CC0D4;   /* default interactive */
+    --cyan-600:  #1B96A8;   /* pressed, or on light surfaces */
+    --cyan-700:  #14707E;   /* dimension lines on the paper sheet */
+    --cyan-ink:  #06201F;   /* text on a solid cyan fill */
+    --cyan-ghost:      rgba(44, 192, 212, 0.12);
+    --cyan-ghost-hi:   rgba(44, 192, 212, 0.20);
+
+    /* ---------- Amber: estimated / medium confidence ---------- */
+    --amber-400: #F0B429;
+    --amber-500: #D2960F;
+    --amber-700: #9A6B0C;   /* on the paper sheet */
+    --amber-ghost: rgba(240, 180, 41, 0.12);
+
+    /* ---------- Vermilion: unreliable / destructive ---------- */
+    --red-400:  #F4705E;
+    --red-500:  #E0492F;
+    --red-700:  #B03A22;    /* on the paper sheet */
+    --red-ghost: rgba(224, 73, 47, 0.12);
+
+    /* ---------- Semantic aliases ---------- */
+    --bg:            var(--g-950);
+    --surface:       var(--g-900);
+    --surface-raised:var(--g-850);
+    --surface-input: var(--g-800);
+    --border:        var(--g-700);
+    --border-strong: var(--g-600);
+    --text:          var(--g-100);
+    --text-secondary:var(--g-300);
+    --text-tertiary: var(--g-400);
+    --text-disabled: var(--g-500);
+
+    --confidence-high: var(--cyan-400);
+    --confidence-mid:  var(--amber-400);
+    --confidence-low:  var(--red-400);
+
+    /* ---------- Type ---------- */
+    --font-ui:   'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-data: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+    --t-display: 600 40px/44px var(--font-ui);
+    --t-h1:      600 28px/34px var(--font-ui);
+    --t-h2:      600 20px/26px var(--font-ui);
+    --t-h3:      600 16px/22px var(--font-ui);
+    --t-body-lg: 400 16px/25px var(--font-ui);
+    --t-body:    400 14px/21px var(--font-ui);
+    --t-label:   500 12px/16px var(--font-ui);
+    --t-caption: 400 11px/14px var(--font-ui);
+    --t-data:    500 13px/18px var(--font-data);
+    --t-dim:     500 12px/16px var(--font-data);
+
+    --track-display: -0.03em;
+    --track-h1:      -0.02em;
+    --track-h2:      -0.012em;
+    --track-label:    0.01em;
+
+    /* ---------- Space (4pt rhythm) ---------- */
+    --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+    --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+    --s-12: 48px; --s-16: 64px;
+
+    /* ---------- Radius (tight — this is a precision tool) ---------- */
+    --r-chip:   2px;
+    --r-input:  3px;
+    --r-button: 4px;
+    --r-card:   6px;
+    --r-modal:  8px;
+    --r-sheet:  0px;   /* the drawing sheet and viewport are never rounded */
+
+    /* ---------- Elevation: matte metal, not soft SaaS shadow ---------- */
+    --edge-light: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --elev-panel: var(--edge-light);
+    --elev-popover: 0 8px 24px -8px rgba(0, 0, 0, 0.6), var(--edge-light);
+    --elev-modal: 0 24px 48px -12px rgba(0, 0, 0, 0.75), var(--edge-light);
+    --focus-ring: 0 0 0 2px var(--g-950), 0 0 0 4px var(--cyan-400);
+
+    /* ---------- Motion ---------- */
+    --dur-state: 140ms;
+    --dur-panel: 220ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in:  cubic-bezier(0.4, 0, 1, 1);
+
+    /* ---------- Viewport grid (the one decorative move, and it's functional) ---------- */
+    --grid-minor: rgba(255, 255, 255, 0.030);
+    --grid-major: rgba(255, 255, 255, 0.055);
+
+    /* ---------- Layout ---------- */
+    --rail-w: 56px;
+    --panel-l-w: 264px;
+    --panel-r-w: 320px;
+    --topbar-h: 52px;
+    --z-base: 0; --z-sticky: 10; --z-popover: 40; --z-modal: 100; --z-toast: 200;
+  }
+
+  /* ============================================================
+     Paper scope — apply to the 2D drawing sheet and print preview.
+     Same tokens, re-pointed to light values.
+     ============================================================ */
+  .paper-scope {
+    --bg:             var(--paper);
+    --surface:        #F5F3EE;
+    --border:         var(--paper-line);
+    --text:           #1B1917;
+    --text-secondary: #4A4642;
+    --text-tertiary:  #6E6862;
+
+    --confidence-high: var(--cyan-700);
+    --confidence-mid:  var(--amber-700);
+    --confidence-low:  var(--red-700);
+
+    background: var(--paper);
+    color: var(--text);
+  }
+
+  /* ============================================================
+     Base
+     ============================================================ */
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: var(--t-body);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'cv05' 1;
+  }
+
+  /* Numbers never jitter while a job is running */
+  .data, .dim, table td.num, [data-numeric] {
+    font: var(--t-data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: var(--r-input);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* ============================================================
+     Buttons
+     ============================================================ */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s-2);
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: var(--r-button);
+    font: 500 14px/1 var(--font-ui);
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--dur-state) var(--ease-out),
+                border-color var(--dur-state) var(--ease-out),
+                color var(--dur-state) var(--ease-out);
+  }
+  .btn:disabled { cursor: not-allowed; }
+
+  .btn-sm { height: 28px; padding: 0 10px; font-size: 13px; }
+  .btn-lg { height: 44px; padding: 0 20px; font-size: 15px; }
+
+  /* Primary — paper. One per screen. It produces the artifact. */
+  .btn-primary            { background: var(--paper); color: var(--g-900); }
+  .btn-primary:hover:not(:disabled)      { background: var(--paper-hi); }
+  .btn-primary:active:not(:disabled)     { background: var(--paper-lo); }
+  .btn-primary:disabled   { background: var(--g-700); color: var(--g-500); }
+
+  /* Secondary — machined panel */
+  .btn-secondary          { background: var(--g-800); color: var(--g-100); border-color: var(--g-700); }
+  .btn-secondary:hover:not(:disabled)    { background: #2C2926; border-color: var(--g-600); }
+  .btn-secondary:active:not(:disabled)   { background: var(--g-850); }
+  .btn-secondary:disabled { background: var(--g-850); color: var(--g-500); border-color: var(--g-800); }
+
+  /* Ghost — tertiary, dense toolbars */
+  .btn-ghost              { background: transparent; color: var(--g-300); }
+  .btn-ghost:hover:not(:disabled)        { background: rgba(255,255,255,0.05); color: var(--g-100); }
+  .btn-ghost:active:not(:disabled)       { background: rgba(255,255,255,0.03); }
+  .btn-ghost:disabled     { color: var(--g-500); background: transparent; }
+
+  /* Accent — measurement tools only. Toggles on to solid cyan. */
+  .btn-accent             { background: var(--cyan-ghost); color: var(--cyan-400); border-color: rgba(44,192,212,0.35); }
+  .btn-accent:hover:not(:disabled)       { background: var(--cyan-ghost-hi); border-color: var(--cyan-500); }
+  .btn-accent[aria-pressed="true"] { background: var(--cyan-500); color: var(--cyan-ink); border-color: var(--cyan-500); }
+
+  /* Destructive — outline by default, solid only inside a confirm dialog */
+  .btn-danger             { background: transparent; color: var(--red-400); border-color: rgba(224,73,47,0.40); }
+  .btn-danger:hover:not(:disabled)       { background: var(--red-ghost); border-color: var(--red-500); }
+  .btn-danger-solid       { background: var(--red-500); color: #FFFFFF; border-color: var(--red-500); }
+  .btn-danger-solid:hover:not(:disabled) { background: #C93C24; }
+
+  /* Icon button — 32px visual, 44px hit area */
+  .btn-icon {
+    width: 32px; height: 32px; padding: 0;
+    position: relative;
+  }
+  .btn-icon::after {
+    content: ''; position: absolute; inset: -6px;
+  }
+
+  /* ============================================================
+     Confidence chips — never color alone. Glyph + label + value.
+     ============================================================ */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 8px;
+    border-radius: var(--r-chip);
+    border: 1px solid;
+    font: var(--t-label);
+  }
+  .chip-measured  { color: var(--cyan-400);  border-color: rgba(44,192,212,0.35);  background: var(--cyan-ghost); }
+  .chip-estimated { color: var(--amber-400); border-color: rgba(240,180,41,0.35);  background: var(--amber-ghost); }
+  .chip-low       { color: var(--red-400);   border-color: rgba(224,73,47,0.35);   background: var(--red-ghost); }
+
+  /* ============================================================
+     Viewport — dark stage with a working grid
+     ============================================================ */
+  .viewport {
+    position: relative;
+    background:
+      linear-gradient(var(--grid-major) 1px, transparent 1px) 0 0 / 64px 64px,
+      linear-gradient(90deg, var(--grid-major) 1px, transparent 1px) 0 0 / 64px 64px,
+      linear-gradient(var(--grid-minor) 1px, transparent 1px) 0 0 / 8px 8px,
+      linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px) 0 0 / 8px 8px,
+      var(--g-950);
+    border-radius: var(--r-sheet);
+  }
+
+  /* ============================================================
+     Inputs
+     ============================================================ */
+  .field {
+    height: 36px;
+    width: 100%;
+    padding: 0 10px;
+    background: var(--g-800);
+    border: 1px solid var(--g-700);
+    border-radius: var(--r-input);
+    color: var(--g-100);
+    font: var(--t-body);
+  }
+  .field::placeholder { color: var(--g-500); }
+  .field:hover:not(:disabled)  { border-color: var(--g-600); }
+  .field:focus:not(:disabled)  { border-color: var(--cyan-500); outline: none; box-shadow: 0 0 0 3px var(--cyan-ghost); }
+  .field:disabled { color: var(--g-500); cursor: not-allowed; }
+  .field[aria-invalid="true"] { border-color: var(--red-500); }
+
+  /* Dimension inputs are numeric — mono, tabular, right-aligned */
+  .field-numeric { font: var(--t-data); font-variant-numeric: tabular-nums; text-align: right; }
+}
