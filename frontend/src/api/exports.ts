@@ -1,4 +1,4 @@
-import { client } from './client';
+import { apiClient } from './client';
 
 export interface ExportFile {
   kind: string;
@@ -14,9 +14,9 @@ export interface ExportsResponse {
 }
 
 export async function getJobExports(jobId: string): Promise<ExportsResponse> {
-  return client(`/jobs/${jobId}/exports`);
+  return apiClient(`/jobs/${jobId}/exports`);
 }
 
 export async function getJobDrawing(jobId: string): Promise<any> {
-  return client(`/jobs/${jobId}/drawing`);
+  return apiClient(`/jobs/${jobId}/drawing`);
 }
