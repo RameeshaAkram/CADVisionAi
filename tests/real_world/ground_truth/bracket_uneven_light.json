@@ -1,0 +1,37 @@
+{
+  "image": "bracket_uneven_light.png",
+  "reference_width_mm": 120,
+  "reference_height_mm": 100,
+  "outer_shape": "t_shape",
+  "outer_vertex_count": 8,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        60.0,
+        17.5
+      ],
+      "radius_mm": 4
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        48.0,
+        85.0
+      ],
+      "radius_mm": 4
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        72.0,
+        85.0
+      ],
+      "radius_mm": 4
+    }
+  ],
+  "expected_hole_count": 3,
+  "tolerance_pct": 3.0,
+  "tolerance_abs_mm": 1.0,
+  "degradation": "uneven_lighting_gradient"
+}

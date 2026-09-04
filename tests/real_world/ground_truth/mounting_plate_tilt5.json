@@ -1,0 +1,77 @@
+{
+  "image": "mounting_plate_tilt5.png",
+  "reference_width_mm": 200,
+  "reference_height_mm": 100,
+  "outer_shape": "rectangle",
+  "outer_vertex_count": 4,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        25.0,
+        25.0
+      ],
+      "radius_mm": 3
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        75.0,
+        25.0
+      ],
+      "radius_mm": 3
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        125.0,
+        25.0
+      ],
+      "radius_mm": 3
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        175.0,
+        25.0
+      ],
+      "radius_mm": 3
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        25.0,
+        75.0
+      ],
+      "radius_mm": 3
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        75.0,
+        75.0
+      ],
+      "radius_mm": 3
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        125.0,
+        75.0
+      ],
+      "radius_mm": 3
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        175.0,
+        75.0
+      ],
+      "radius_mm": 3
+    }
+  ],
+  "expected_hole_count": 8,
+  "tolerance_pct": 4.0,
+  "tolerance_abs_mm": 2.0,
+  "degradation": "rotation_5deg"
+}

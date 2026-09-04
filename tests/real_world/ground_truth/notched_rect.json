@@ -1,0 +1,28 @@
+{
+  "image": "notched_rect.png",
+  "reference_width_mm": 120,
+  "reference_height_mm": 80,
+  "outer_shape": "notched_rectangle",
+  "outer_vertex_count": 8,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        20.0,
+        40.0
+      ],
+      "radius_mm": 4
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        60.0,
+        40.0
+      ],
+      "radius_mm": 4
+    }
+  ],
+  "expected_hole_count": 2,
+  "tolerance_pct": 1.5,
+  "tolerance_abs_mm": 0.5
+}

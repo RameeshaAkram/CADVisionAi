@@ -1,0 +1,36 @@
+{
+  "image": "irregular_part.png",
+  "reference_width_mm": 136.49,
+  "reference_height_mm": 133.07,
+  "outer_shape": "heptagon",
+  "outer_vertex_count": 7,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        48.24,
+        55.0
+      ],
+      "radius_mm": 5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        88.24,
+        55.0
+      ],
+      "radius_mm": 5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        68.24,
+        90.0
+      ],
+      "radius_mm": 5
+    }
+  ],
+  "expected_hole_count": 3,
+  "tolerance_pct": 2.0,
+  "tolerance_abs_mm": 0.8
+}

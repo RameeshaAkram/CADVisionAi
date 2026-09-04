@@ -1,0 +1,44 @@
+{
+  "image": "pcb_outline.png",
+  "reference_width_mm": 85,
+  "reference_height_mm": 55,
+  "outer_shape": "rectangle",
+  "outer_vertex_count": 4,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        5.0,
+        5.0
+      ],
+      "radius_mm": 2.5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        80.0,
+        5.0
+      ],
+      "radius_mm": 2.5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        80.0,
+        50.0
+      ],
+      "radius_mm": 2.5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        5.0,
+        50.0
+      ],
+      "radius_mm": 2.5
+    }
+  ],
+  "expected_hole_count": 4,
+  "tolerance_pct": 1.5,
+  "tolerance_abs_mm": 0.5
+}

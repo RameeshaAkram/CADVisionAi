@@ -1,0 +1,44 @@
+{
+  "image": "large_plate.png",
+  "reference_width_mm": 220,
+  "reference_height_mm": 150,
+  "outer_shape": "rectangle",
+  "outer_vertex_count": 4,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        20.0,
+        20.0
+      ],
+      "radius_mm": 5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        200.0,
+        20.0
+      ],
+      "radius_mm": 5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        200.0,
+        130.0
+      ],
+      "radius_mm": 5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        20.0,
+        130.0
+      ],
+      "radius_mm": 5
+    }
+  ],
+  "expected_hole_count": 4,
+  "tolerance_pct": 1.0,
+  "tolerance_abs_mm": 0.5
+}

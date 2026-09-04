@@ -19,6 +19,7 @@ outputs/*
 .pytest_cache/
 .coverage
 htmlcov/
+tests/real_world/reports/
 *.tmp
 *.temp
 *.bak

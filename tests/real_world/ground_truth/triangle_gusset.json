@@ -1,0 +1,20 @@
+{
+  "image": "triangle_gusset.png",
+  "reference_width_mm": 80,
+  "reference_height_mm": 60,
+  "outer_shape": "triangle",
+  "outer_vertex_count": 3,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        25,
+        40
+      ],
+      "radius_mm": 5
+    }
+  ],
+  "expected_hole_count": 1,
+  "tolerance_pct": 2.0,
+  "tolerance_abs_mm": 0.5
+}

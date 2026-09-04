@@ -1,0 +1,20 @@
+{
+  "image": "circle_plate.png",
+  "reference_width_mm": 80,
+  "reference_height_mm": 80,
+  "outer_shape": "circle",
+  "outer_vertex_count": 0,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        40,
+        40
+      ],
+      "radius_mm": 3
+    }
+  ],
+  "expected_hole_count": 1,
+  "tolerance_pct": 2.0,
+  "tolerance_abs_mm": 0.5
+}

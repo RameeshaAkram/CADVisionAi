@@ -1,0 +1,68 @@
+{
+  "image": "gasket_ring.png",
+  "reference_width_mm": 100,
+  "reference_height_mm": 100,
+  "outer_shape": "circle",
+  "outer_vertex_count": 0,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        50.0,
+        50.0
+      ],
+      "radius_mm": 30.0
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        88.0,
+        50.0
+      ],
+      "radius_mm": 4
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        69.0,
+        82.91
+      ],
+      "radius_mm": 4
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        31.0,
+        82.91
+      ],
+      "radius_mm": 4
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        12.0,
+        50.0
+      ],
+      "radius_mm": 4
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        31.0,
+        17.09
+      ],
+      "radius_mm": 4
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        69.0,
+        17.09
+      ],
+      "radius_mm": 4
+    }
+  ],
+  "expected_hole_count": 7,
+  "tolerance_pct": 2.0,
+  "tolerance_abs_mm": 0.5
+}

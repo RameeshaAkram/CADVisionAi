@@ -1,0 +1,20 @@
+{
+  "image": "diamond_plate.png",
+  "reference_width_mm": 100,
+  "reference_height_mm": 100,
+  "outer_shape": "diamond",
+  "outer_vertex_count": 4,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        50,
+        50
+      ],
+      "radius_mm": 5
+    }
+  ],
+  "expected_hole_count": 1,
+  "tolerance_pct": 2.0,
+  "tolerance_abs_mm": 0.5
+}
