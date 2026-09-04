@@ -5,7 +5,7 @@ dict.  Circular contours (circularity >= CIRCULARITY_THRESHOLD) are emitted
 as circle entities; all others remain as polylines.
 """
 
-from backend.pipeline.circle_fitter import circle_from_contour
+from backend.pipeline.circle_fitter import circle_from_contour, classify_hole_primitive
 
 
 def generate(features: dict, measurements: list, scale_factor: float, scale_y: float | None = None) -> dict:
@@ -22,20 +22,24 @@ def generate(features: dict, measurements: list, scale_factor: float, scale_y: f
             continue
 
         role = contour.get("role", "outer")
+        prim_type = "outer_boundary" if role == "outer" else "polygon"
 
-        # Only try circle fit for hole contours (outer contour stays as polyline)
+        # Classify hole primitives
         if role == "hole":
-            circle = circle_from_contour(contour)
-            if circle is not None:
+            hole_info = classify_hole_primitive(contour)
+            if hole_info.get("is_circle") and hole_info.get("circle"):
+                circle = hole_info["circle"]
                 views["top"]["circles"].append({
                     "cx": circle["cx"] * scale_factor,
                     "cy": circle["cy"] * scale_y,
                     "r":  circle["r"]  * scale_factor,  # assume symmetric scaling for holes
                     "role": "hole",
+                    "primitive_type": "circle",
                     "circularity": circle["circularity"],
                     "is_circle": True,
                 })
                 continue  # skip the polyline path
+            prim_type = hole_info.get("primitive_type", "polygon")
 
         # Fallback: scale and emit as polyline (outer contour, slots, rectangles)
         scaled_points = [
@@ -59,6 +63,7 @@ def generate(features: dict, measurements: list, scale_factor: float, scale_y: f
 
         views["top"]["polylines"].append({
             "role": role,
+            "primitive_type": prim_type,
             "is_closed": contour.get("is_closed", True),
             "points": scaled_points,
         })

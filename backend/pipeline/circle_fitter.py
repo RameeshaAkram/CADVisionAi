@@ -155,3 +155,65 @@ def circle_from_contour(contour: dict) -> Optional[dict]:
         "circularity": circ,
         "is_circle": True,
     }
+
+
+def classify_hole_primitive(contour: dict) -> dict:
+    """Classifies an internal hole contour into geometric primitive types.
+
+    Returns a dict with:
+        'primitive_type': 'circle' | 'slot' | 'rectangle' | 'polygon',
+        and primitive-specific attributes.
+    """
+    import cv2
+    points = contour.get("points", [])
+    if len(points) < 3:
+        return {"primitive_type": "unknown", "is_circle": False}
+
+    # 1. Test circle fit
+    c_fit = circle_from_contour(contour)
+    if c_fit is not None:
+        return {
+            "primitive_type": "circle",
+            "is_circle": True,
+            "circle": c_fit,
+            "circularity": c_fit["circularity"],
+        }
+
+    # 2. Geometric analysis
+    pts = np.array([[p["x"], p["y"]] for p in points], dtype=np.float32)
+    rect = cv2.minAreaRect(pts)
+    (rcx, rcy), (rw, rh), _ = rect
+    w_rect = max(rw, rh)
+    h_rect = min(rw, rh)
+    aspect_ratio = w_rect / max(h_rect, 1e-4)
+    circ = _polygon_circularity(pts)
+
+    # Oblong slot: aspect ratio >= 1.5 with rounded ends
+    if aspect_ratio >= 1.5 and 0.55 <= circ < settings.CIRCULARITY_THRESHOLD:
+        return {
+            "primitive_type": "slot",
+            "is_circle": False,
+            "center": (float(rcx), float(rcy)),
+            "length": float(w_rect),
+            "width": float(h_rect),
+            "aspect_ratio": float(aspect_ratio),
+            "circularity": float(circ),
+        }
+
+    # Rectangle: 4-5 vertices
+    if 4 <= len(points) <= 6 and circ < 0.80:
+        return {
+            "primitive_type": "rectangle",
+            "is_circle": False,
+            "center": (float(rcx), float(rcy)),
+            "width": float(w_rect),
+            "height": float(h_rect),
+            "aspect_ratio": float(aspect_ratio),
+        }
+
+    return {
+        "primitive_type": "polygon",
+        "is_circle": False,
+        "circularity": float(circ),
+        "vertex_count": len(points),
+    }

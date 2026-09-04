@@ -55,30 +55,48 @@ def detect(images: list[NormalizedImage], components: list = None) -> dict:
     else:
         _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
+    # Morphological cleanup to remove noise specks and seal microscopic line gaps
+    kernel3 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel3, iterations=1)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel3, iterations=1)
+
     # Full tree hierarchy: [Next, Previous, First_Child, Parent]
     contours, hierarchy = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    if not contours or hierarchy is None:
-        return {"contours": [], "warnings": ["No contours found in the image."]}
-
     # Filter candidates for outer contour: ignore contours touching image border (frame/canvas)
     candidates = []
-    for i, c in enumerate(contours):
-        x, y, bw, bh = cv2.boundingRect(c)
-        if x <= 2 or y <= 2 or (x + bw) >= (w - 2) or (y + bh) >= (h - 2):
-            continue
-        area = cv2.contourArea(c)
-        if area > 100:
-            candidates.append((i, area))
+    if contours and hierarchy is not None:
+        for i, c in enumerate(contours):
+            x, y, bw, bh = cv2.boundingRect(c)
+            if x <= 2 or y <= 2 or (x + bw) >= (w - 2) or (y + bh) >= (h - 2):
+                continue
+            area = cv2.contourArea(c)
+            if area > 100:
+                candidates.append((i, area))
 
+    # Adaptive threshold fallback if Otsu found no valid workpiece candidates
     if not candidates:
-        largest_idx = max(
-            range(len(contours)),
-            key=lambda i: cv2.contourArea(contours[i]) if cv2.contourArea(contours[i]) < 0.99 * (w * h) else 0,
-        )
-    else:
-        candidates.sort(key=lambda item: item[1], reverse=True)
-        largest_idx = candidates[0][0]
+        logger.debug("Otsu produced no valid candidates; falling back to adaptive thresholding.")
+        block = max(15, (min(h, w) // 25) | 1)
+        adapt_flag = cv2.THRESH_BINARY_INV if bg_is_light else cv2.THRESH_BINARY
+        binary_adapt = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, adapt_flag, block, 4)
+        binary_adapt = cv2.morphologyEx(binary_adapt, cv2.MORPH_OPEN, kernel3, iterations=1)
+        binary_adapt = cv2.morphologyEx(binary_adapt, cv2.MORPH_CLOSE, kernel3, iterations=1)
+        contours, hierarchy = cv2.findContours(binary_adapt, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        if contours and hierarchy is not None:
+            for i, c in enumerate(contours):
+                x, y, bw, bh = cv2.boundingRect(c)
+                if x <= 2 or y <= 2 or (x + bw) >= (w - 2) or (y + bh) >= (h - 2):
+                    continue
+                area = cv2.contourArea(c)
+                if area > 100:
+                    candidates.append((i, area))
+
+    if not contours or hierarchy is None or not candidates:
+        return {"contours": [], "warnings": ["No valid object contours found in the image."]}
+
+    candidates.sort(key=lambda item: item[1], reverse=True)
+    largest_idx = candidates[0][0]
 
     outer_contour = contours[largest_idx]
     outer_area = cv2.contourArea(outer_contour)
@@ -121,12 +139,24 @@ def detect(images: list[NormalizedImage], components: list = None) -> dict:
         # Simplify contour
         epsilon = 0.002 * cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, epsilon, True)
+        pts = approx.astype(np.float32)
+
+        # Sub-pixel vertex refinement for polygon corners
+        if 3 <= len(pts) <= 16:
+            try:
+                criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.02)
+                pts_refined = cv2.cornerSubPix(gray, pts, (3, 3), (-1, -1), criteria)
+                if not np.any(np.isnan(pts_refined)):
+                    pts = pts_refined
+            except Exception:
+                pass
+
         # Convert to list of points
-        points = [{"x": float(p[0][0]), "y": float(p[0][1])} for p in approx]
+        points = [{"x": float(p[0][0]), "y": float(p[0][1])} for p in pts]
         return {
             "role": role,
             "points": points,
-            "area": float(cv2.contourArea(approx)),
+            "area": float(cv2.contourArea(pts)),
             "is_closed": True,
         }
 
