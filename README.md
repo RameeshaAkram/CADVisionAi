@@ -1,146 +1,215 @@
-# CAD AI
+# CADVision AI
 
-AI-assisted reverse-engineering tool that converts photographs (or a short video) of a physical object, combined with at least one known real-world dimension, into a scaled 3-D reconstruction, 2-D orthographic drawing, DXF file, and a 3-D interchange file. The system produces honest confidence warnings — a photograph cannot recover hidden surfaces or exact metrology. This is a hackathon MVP, not a metrology system and not AutoCAD automation.
+CADVision AI is a hackathon MVP for turning clear reference images of flat parts into a scaled CAD starting point. It is designed for workshops, engineers, and makers who want to reduce manual drafting for simple profiles.
 
-## Status
+The project vision is:
 
-**Segment 3 — Video frames + preprocess.** Photos and video jobs extract and preprocess frames into a normalized image collection saved to `uploads/{job_id}/normalized/`.
-
-### Pipeline Stages
-1. **Images/Video** uploaded via frontend.
-2. **Reconstruction**: `backend/pipeline/reconstruction.py` computes an approximate 3D shape using a CPU-based visual hull (space carving) algorithm with marching cubes.
-3. **Scaling**: `backend/pipeline/scale_calibration.py` calculates real-world metrics based on user inputs.
-4. **Assembly**: `backend/pipeline/assembly_analyzer.py` determines if the object is a single body or multiple parts.
-5. **Geometry Refinement**: Applies scale calibration to convert the raw reconstruction into real-world units, merges close vertices, and decimates overly complex meshes.
-7. **CAD Generation**: Fits parametric CAD primitives (like bounding boxes) to the refined geometry where confidence is high.
-8. **Drawing Generation**: Creates a 2D orthographic drawing JSON (front, top, side) from the CAD solids and measurements, adding dimensions based on confidence levels.
-9. **Exporters**: Writes the final assets to disk (`outputs/{job_id}/`): a scaled 3D mesh (`model.stl`) and a 2D drawing (`drawing.dxf`). **Note: This output is an AI-assisted approximation and not a true parametric CAD model or a metrology record. It is a draft meant to be imported into downstream CAD software for verification and authoring.**
-
-## Guidelines
-See [docs/CAPTURE.md](file:///C:/Users/USER/Desktop/Workspace/AutoCad/cad-ai/docs/CAPTURE.md) for detailed rules on capturing usable inputs (8-20 clear, diverse photos or one 360 orbit video) and understanding the AI's limitations.
-
-If a side is missing or the reconstruction fails due to poor coverage, you can add photos to the same job and process it again without starting over!
-
-Jobs persist automatically on disk. You can safely close the application or restart the server, and jobs will be available via the "Jobs" link in the top navigation bar. If a job is actively processing in the background, you can leave the page and return later without interrupting the reconstruction.
-
-## Folder Layout
-
-```
-cad-ai/
-├── backend/          # FastAPI application
-│   ├── api/          # Route modules
-│   ├── core/         # Config, logging, exceptions
-│   ├── models/       # Pydantic schemas, job data model
-│   ├── pipeline/     # Processing pipeline stages (stubs)
-│   ├── exporters/    # DXF / mesh / CAD export (stubs)
-│   ├── storage/      # File and job management
-│   └── utils/        # Shared helpers (stubs)
-├── frontend/         # UI placeholder (not yet implemented)
-├── uploads/          # Uploaded files (gitignored), organized by job_id
-├── outputs/          # Generated outputs (gitignored)
-└── tests/            # Pytest test suite
+```text
+Physical part/image -> image processing/CV -> geometry detection
+-> CAD reconstruction -> DXF and 3D output
 ```
 
-## Setup
+The current implementation is intentionally narrower than that vision. It creates an approximate 2D profile from a visible image contour, exports an editable DXF polyline, and creates an extruded STL when a material thickness is supplied. It is not an industrial metrology system and generated files must be checked before fabrication.
 
-```bash
-cd cad-ai
-python -m venv .venv
+## Current Workflow
 
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-cp .env.example .env
+1. Upload one or more JPEG, PNG, or WebP images.
+2. Provide at least one known dimension and a material thickness.
+3. Normalize the images with OpenCV.
+4. Analyze image quality and viewpoint coverage.
+5. Detect a foreground object using local `rembg` or an OpenCV fallback.
+6. Select the strongest detected image and extract its visible outer contour.
+7. Calibrate the contour into the selected units using known width/length/height values.
+8. Render a 2D drawing preview.
+9. Export `drawing.dxf` and an extruded `model.stl` to `outputs/{job_id}/`.
+
+## Implemented Functionality
+
+- FastAPI backend with persisted jobs.
+- React/Vite frontend with upload, processing, jobs, preview, and export screens.
+- Local image preprocessing and foreground segmentation.
+- Outer contour extraction and basic contour simplification.
+- Known-dimension scaling with separate X/Y calibration when both axes are provided.
+- 2D drawing JSON and browser preview.
+- Unit-aware DXF export with `CUT` and `HOLES` layers.
+- Local extruded STL export using Shapely, Trimesh, and Mapbox Earcut.
+- Export existence checks and job validation.
+- Background processing with progress stages.
+
+## What Is Not Implemented
+
+- Reliable hole detection for all backgrounds and segmentation masks.
+- True multi-view 3D reconstruction.
+- Perspective correction or camera calibration.
+- Automatic hidden-surface inference.
+- STEP/DWG export.
+- Parametric CAD constraints or manufacturing tolerances.
+- Production-grade CNC or laser-cut guarantees.
+- Backend video-frame extraction. The UI includes a video option, but the current processing contract is photo mode.
+
+## Technology Stack
+
+### Backend
+
+- Python 3.11
+- FastAPI and Uvicorn
+- Pydantic Settings
+- OpenCV and Pillow
+- `rembg` for local foreground segmentation
+- Shapely, Trimesh, and Mapbox Earcut for STL extrusion
+- ezdxf for DXF writing
+- Pytest and HTTPX for tests
+
+### Frontend
+
+- React 19
+- TypeScript
+- Vite
+- React Router
+- TanStack React Query
+- Tailwind CSS
+- Lucide React
+
+## Architecture
+
+### Backend
+
+- `backend/main.py`: FastAPI application, CORS, lifecycle, and health route.
+- `backend/api/`: upload, processing, status, drawing, and export routes.
+- `backend/models/`: persisted job models and public response schemas.
+- `backend/pipeline/`: preprocessing, view analysis, detection, calibration, drawing, and validation.
+- `backend/exporters/`: DXF and STL writers.
+- `backend/storage/`: file and job persistence.
+- `backend/utils/`: image, video, and geometry helpers.
+
+### Frontend
+
+- `frontend/src/pages/`: new job, processing, jobs, and workspace views.
+- `frontend/src/components/`: upload controls, drawing preview, measurements, and export UI.
+- `frontend/src/api/`: same-origin API client and job/export calls.
+- `frontend/src/styles/`: shared design tokens and application styles.
+
+## Local Setup
+
+From PowerShell on Windows:
+
+```powershell
+cd C:\path\to\CADVisionAi
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-2. **Start Backend Server**
-```bash
-# In cad-ai directory
-uvicorn backend.main:app --reload --port 8000
-```
-API runs on `http://127.0.0.1:8000`. Outputs saved to `outputs/`.
+Do not commit `.env`. It is ignored by Git. Edit it locally if you need to change ports, directories, or CORS origins.
 
-3. **Start Frontend Dev Server**
-```bash
-# In cad-ai/frontend directory
+### Start the Backend
+
+In the repository root:
+
+```powershell
+python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Backend URLs:
+
+- API: `http://localhost:8000`
+- Health: `http://localhost:8000/health`
+- Swagger: `http://localhost:8000/docs`
+
+### Start the Frontend
+
+In a second terminal:
+
+```powershell
+cd frontend
 npm install
-npm run dev
-```
-UI runs on `http://localhost:5173`.
-
-4. **Verify**
-- Open `http://localhost:5173` in a browser.
-- Drop 2 photos, add a dimension, and click "Start processing".
-- Watch the progress in the UI as it polls the backend API.
-
-## Validation & Confidence
-
-CAD AI uses a strict confidence and validation model to prevent presenting inferred geometry as exact measurements.
-
-- **Measured (●)**: True metric scaling is confirmed and the shape was reconstructed reliably.
-- **Estimated (◐)**: The AI has inferred depth, scale, or surfaces based on limited visual information. Displayed with reduced precision.
-- **Low (○)**: Features are heavily occluded or distorted. Only ranges are provided, no exact numbers.
-
-The overall `confidence` score (0..1) is conservative, capped at 0.85, and drops based on missing views, missing files, or mismatched known dimensions.
-
-## API Endpoints
-
-### Meta
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Liveness probe. Returns `{"status":"ok","service":"cad-ai"}` |
-| GET | `/` | Service info and link to `/docs` |
-
-### Jobs & Processing
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/jobs` | Create a job (multipart/form-data) |
-| POST | `/api/jobs/{job_id}/process` | Begin extraction & reconstruction. |
-| GET | `/api/jobs/{job_id}/status` | Poll for updates. |
-| GET | `/api/jobs/{job_id}/exports` | List available CAD exports (DXF, STL). |
-| GET | `/api/jobs/{job_id}/drawing` | Get the 2D orthographic drawing JSON. |
-| GET | `/api/jobs/{job_id}/exports/{filename}` | Download a specific export file. |
-| POST | `/api/jobs/{job_id}/files` | Append images to a photo-mode job |
-| GET | `/api/jobs/{job_id}/files/{filename}` | Download a stored upload |
-
-```
-POST /api/jobs
-Content-Type: multipart/form-data
-
-Fields:
-  mode:             "photo" | "video"
-  units:            "mm" | "cm" | "inches" | "feet"
-  known_dimensions: JSON string, e.g. [{"label":"height","value":8}]
-  files:            one or more file parts (field name "files")
+npm run dev -- --host 0.0.0.0
 ```
 
-Photo mode accepts one or more images (JPEG, PNG, WebP). Video mode accepts exactly one video (MP4, MOV, WebM). At least one known dimension with a positive value is required.
+Frontend URL: `http://localhost:5173`
 
-**Response (201):**
-```json
-{
-  "job_id": "...",
-  "mode": "photo",
-  "status": "uploaded",
-  "units": "feet",
-  "known_dimensions": [{"label": "height", "value": 8.0}],
-  "file_count": 1,
-  "files": [{"filename": "photo.jpg", "kind": "image", "bytes": 5429, "width": 640, "height": 480}],
-  "warnings": ["Fewer than 3 views; reconstruction quality will likely be low. You can add more photos."]
-}
+The Vite development proxy forwards `/api` requests to the backend. Browser code should use relative `/api` paths rather than direct cross-origin backend URLs.
+
+## API Input
+
+`POST /api/jobs` accepts `multipart/form-data`:
+
+```text
+mode: photo
+units: mm | cm | inches | feet
+known_dimensions: JSON array, for example [{"label":"Overall width","value":100}]
+thickness: positive material thickness in the selected units
+files: one or more image files
 ```
 
-### Interactive docs
+Useful endpoints:
 
-Swagger UI is available at `http://127.0.0.1:8000/docs`.
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | Service health |
+| POST | `/api/jobs` | Create an uploaded job |
+| POST | `/api/jobs/{job_id}/process` | Start processing |
+| GET | `/api/jobs/{job_id}/status` | Read processing status |
+| GET | `/api/jobs/{job_id}/drawing` | Read 2D drawing JSON |
+| GET | `/api/jobs/{job_id}/exports` | List DXF/STL exports |
+| GET | `/api/jobs/{job_id}/exports/{filename}` | Download an export |
 
-## Tests
+## Accuracy and Limitations
 
-```bash
-pytest tests/ -q
+The output is only as accurate as the visible contour, image perspective, segmentation, and user-provided reference dimension. A single image cannot recover hidden surfaces. White backgrounds, shadows, clutter, holes, and perspective can produce incorrect contours. A valid DXF file only proves that the file is structurally readable; it does not prove that the geometry is dimensionally correct.
+
+Use a camera parallel to the part, even lighting, a plain background, and at least three clear views when possible. Inspect the DXF in AutoCAD or another CAD viewer before cutting.
+
+## Testing
+
+Run the backend tests:
+
+```powershell
+py -3.11 -m pytest tests/ -q
 ```
 
-## Configuration
+Build the frontend:
 
-All configuration is loaded from environment variables (via `.env`). See `.env.example` for available keys. No secrets are hardcoded in source.
+```powershell
+cd frontend
+npm run build
+```
+
+The test suite covers health, upload/job persistence, preprocessing, object detection, validation, export routes, and STL writing.
+
+## Project Structure
+
+```text
+CADVisionAi/
+├── backend/
+│   ├── api/
+│   ├── core/
+│   ├── exporters/
+│   ├── models/
+│   ├── pipeline/
+│   ├── storage/
+│   └── utils/
+├── frontend/
+│   └── src/
+├── docs/
+├── tests/
+├── uploads/       # local, ignored job inputs
+├── outputs/       # local, ignored generated files
+├── .env.example
+├── requirements.txt
+└── README.md
+```
+
+## MVP Scope
+
+The current MVP target is a reviewable, approximate DXF and STL from a clear flat-part image, known dimensions, and material thickness. It is a starting point for CAD authoring, not a replacement for engineering review.
+
+## Future Planned Features
+
+- Robust hole and internal-cutout preservation.
+- User-editable contour and approval workflow.
+- Perspective and ruler-marker calibration.
+- Reliable video frame extraction.
+- Multi-view registration and real 3D reconstruction.
+- Parametric constraints, STEP/DWG export, and manufacturing checks.
