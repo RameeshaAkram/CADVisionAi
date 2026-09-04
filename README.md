@@ -14,6 +14,7 @@
 > **Automated Computer Vision & Computational Geometry Engine**  
 > *Transform ordinary photographs of flat mechanical parts and sheet metal components into industrial-grade, CNC-ready AutoCAD R2018 DXF files and 3D watertight STL models.*
 
+
 ---
 
 ## 📌 Repository Description
