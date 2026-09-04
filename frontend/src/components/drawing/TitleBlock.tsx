@@ -11,11 +11,13 @@ export default function TitleBlock({ titleBlock, createdAt, theme = 'paper', uni
   const effectiveUnits = units || titleBlock?.units || 'mm';
 
   return (
-    <div className={`absolute bottom-4 right-4 border z-20 font-data text-[11px] shadow-lg pointer-events-none select-none transition-colors duration-150 ${
-      isBlueprint
-        ? 'bg-[rgba(14,22,26,0.92)] border-[rgba(56,189,248,0.4)] text-[var(--g-200)]'
-        : 'bg-[rgba(255,255,255,0.95)] border-[var(--g-700)] text-[var(--g-100)]'
-    } w-[240px] p-3`}>
+    <div
+      style={{ bottom: '12px', right: '12px' }}
+      className={`absolute bottom-3 right-3 border z-20 font-data text-[11px] shadow-lg pointer-events-none select-none transition-colors duration-150 ${
+        isBlueprint
+          ? 'bg-[rgba(14,22,26,0.92)] border-[rgba(56,189,248,0.4)] text-[var(--g-200)]'
+          : 'bg-[rgba(255,255,255,0.95)] border-[var(--g-700)] text-[var(--g-100)]'
+      } w-[240px] p-3`}>
       {/* Header */}
       <div className={`border-b pb-1.5 mb-2 flex justify-between items-baseline ${
         isBlueprint ? 'border-[rgba(56,189,248,0.25)]' : 'border-[var(--g-700)]'

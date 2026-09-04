@@ -3,15 +3,34 @@ interface OrthoViewProps {
   view: any;
   theme?: 'blueprint' | 'paper';
   showPoints?: boolean;
+  showDimensions?: boolean;
+  units?: string;
+  geomMetrics?: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    width: number;
+    height: number;
+    cx: number;
+    cy: number;
+  };
 }
 
-export default function OrthoView({ view, theme = 'paper', showPoints = false }: OrthoViewProps) {
+export default function OrthoView({
+  view,
+  theme = 'paper',
+  showPoints = false,
+  showDimensions = true,
+  units = 'mm',
+  geomMetrics
+}: OrthoViewProps) {
   const isBlueprint = theme === 'blueprint';
 
   const getStrokeStyle = (role: string) => {
     if (role === 'hole') {
       return {
-        stroke: isBlueprint ? '#F43F5E' : '#E11D48', // Rose/crimson
+        stroke: isBlueprint ? '#F43F5E' : '#E11D48', // Rose / crimson
         strokeWidth: isBlueprint ? 2 : 1.75,
         strokeDasharray: isBlueprint ? 'none' : 'none',
       };
@@ -30,9 +49,11 @@ export default function OrthoView({ view, theme = 'paper', showPoints = false }:
     return isBlueprint ? 'rgba(56, 189, 248, 0.04)' : 'rgba(27, 25, 23, 0.02)';
   };
 
+  const dimColor = isBlueprint ? '#38BDF8' : '#087F95';
+
   return (
-    <g>
-      {/* Polylines */}
+    <g className="ortho-view-layer select-none">
+      {/* 1. Polylines (Outer contours, slots, rectangular holes) */}
       {view.polylines && view.polylines.map((poly: any, i: number) => {
         if (!poly.points || poly.points.length === 0) return null;
 
@@ -66,19 +87,19 @@ export default function OrthoView({ view, theme = 'paper', showPoints = false }:
 
             {/* Hole Center Crosshair (CAD standard) */}
             {isHole && (
-              <g stroke={isBlueprint ? '#F43F5E' : '#E11D48'} strokeWidth={1} opacity={0.6}>
+              <g stroke={getStrokeStyle('hole').stroke} strokeWidth={1} opacity={0.65}>
                 <line
-                  x1={centroidX - 2}
+                  x1={centroidX - 3}
                   y1={centroidY}
-                  x2={centroidX + 2}
+                  x2={centroidX + 3}
                   y2={centroidY}
                   vectorEffect="non-scaling-stroke"
                 />
                 <line
                   x1={centroidX}
-                  y1={centroidY - 2}
+                  y1={centroidY - 3}
                   x2={centroidX}
-                  y2={centroidY + 2}
+                  y2={centroidY + 3}
                   vectorEffect="non-scaling-stroke"
                 />
               </g>
@@ -100,6 +121,236 @@ export default function OrthoView({ view, theme = 'paper', showPoints = false }:
           </g>
         );
       })}
+
+      {/* 2. Circles (Circular holes from Phase 2/6 pipeline) */}
+      {view.circles && view.circles.map((c: any, idx: number) => {
+        const role = c.role || 'hole';
+        const strokeStyle = getStrokeStyle(role);
+        const fillStyle = getFillStyle(role);
+        const ext = Math.max(c.r * 0.35, 2.5);
+
+        return (
+          <g key={`circle-${idx}`} className="cad-circle-entity">
+            {/* Shaded Hole Circle following consistent theme role styling */}
+            <circle
+              cx={c.cx}
+              cy={c.cy}
+              r={c.r}
+              {...strokeStyle}
+              fill={fillStyle}
+              vectorEffect="non-scaling-stroke"
+            />
+
+            {/* ISO CAD Center Crosshairs */}
+            <g stroke={strokeStyle.stroke} strokeWidth={0.85} opacity={0.7}>
+              {/* Horizontal centerline extending past hole radius */}
+              <line
+                x1={c.cx - c.r - ext}
+                y1={c.cy}
+                x2={c.cx + c.r + ext}
+                y2={c.cy}
+                vectorEffect="non-scaling-stroke"
+                strokeDasharray="4 1.5 1 1.5"
+              />
+              {/* Vertical centerline */}
+              <line
+                x1={c.cx}
+                y1={c.cy - c.r - ext}
+                x2={c.cx}
+                y2={c.cy + c.r + ext}
+                vectorEffect="non-scaling-stroke"
+                strokeDasharray="4 1.5 1 1.5"
+              />
+              {/* Center mark point */}
+              <circle
+                cx={c.cx}
+                cy={c.cy}
+                r={1}
+                fill={strokeStyle.stroke}
+                stroke="none"
+              />
+            </g>
+
+            {/* Quadrant handles when showPoints is enabled */}
+            {showPoints && (
+              <g fill={strokeStyle.stroke} stroke="#FFFFFF" strokeWidth={0.5}>
+                <circle cx={c.cx - c.r} cy={c.cy} r={1.75} vectorEffect="non-scaling-stroke" />
+                <circle cx={c.cx + c.r} cy={c.cy} r={1.75} vectorEffect="non-scaling-stroke" />
+                <circle cx={c.cx} cy={c.cy - c.r} r={1.75} vectorEffect="non-scaling-stroke" />
+                <circle cx={c.cx} cy={c.cy + c.r} r={1.75} vectorEffect="non-scaling-stroke" />
+              </g>
+            )}
+          </g>
+        );
+      })}
+
+      {/* 3. CAD Engineering Dimension Overlay */}
+      {showDimensions && geomMetrics && (
+        <g className="cad-dimensions-layer" opacity={0.95}>
+          {/* Overall Width Dimension (Positioned along bottom of part) */}
+          {(() => {
+            const dimY = geomMetrics.maxY + 15;
+            const extYStart = geomMetrics.maxY + 2;
+            const extYEnd = dimY + 4;
+            const tick = 3;
+
+            return (
+              <g key="dim-width">
+                {/* Extension line Left */}
+                <line
+                  x1={geomMetrics.minX}
+                  y1={extYStart}
+                  x2={geomMetrics.minX}
+                  y2={extYEnd}
+                  stroke={dimColor}
+                  strokeWidth={0.75}
+                  opacity={0.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* Extension line Right */}
+                <line
+                  x1={geomMetrics.maxX}
+                  y1={extYStart}
+                  x2={geomMetrics.maxX}
+                  y2={extYEnd}
+                  stroke={dimColor}
+                  strokeWidth={0.75}
+                  opacity={0.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* Horizontal Dimension Line */}
+                <line
+                  x1={geomMetrics.minX}
+                  y1={dimY}
+                  x2={geomMetrics.maxX}
+                  y2={dimY}
+                  stroke={dimColor}
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* CAD Oblique Ticks at Left */}
+                <line
+                  x1={geomMetrics.minX - tick}
+                  y1={dimY + tick}
+                  x2={geomMetrics.minX + tick}
+                  y2={dimY - tick}
+                  stroke={dimColor}
+                  strokeWidth={1.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* CAD Oblique Ticks at Right */}
+                <line
+                  x1={geomMetrics.maxX - tick}
+                  y1={dimY + tick}
+                  x2={geomMetrics.maxX + tick}
+                  y2={dimY - tick}
+                  stroke={dimColor}
+                  strokeWidth={1.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* Dimension Text Label */}
+                <text
+                  x={geomMetrics.cx}
+                  y={dimY + 8}
+                  textAnchor="middle"
+                  fill={dimColor}
+                  fontSize="11"
+                  fontWeight="600"
+                  fontFamily="'IBM Plex Mono', monospace"
+                  paintOrder="stroke"
+                  stroke={isBlueprint ? '#0A1014' : '#EDEAE3'}
+                  strokeWidth="4"
+                  strokeLinejoin="round"
+                >
+                  {geomMetrics.width.toFixed(2)} {units}
+                </text>
+              </g>
+            );
+          })()}
+
+          {/* Overall Height Dimension (Positioned along right of part) */}
+          {(() => {
+            const dimX = geomMetrics.maxX + 15;
+            const extXStart = geomMetrics.maxX + 2;
+            const extXEnd = dimX + 4;
+            const tick = 3;
+
+            return (
+              <g key="dim-height">
+                {/* Extension line Top */}
+                <line
+                  x1={extXStart}
+                  y1={geomMetrics.minY}
+                  x2={extXEnd}
+                  y2={geomMetrics.minY}
+                  stroke={dimColor}
+                  strokeWidth={0.75}
+                  opacity={0.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* Extension line Bottom */}
+                <line
+                  x1={extXStart}
+                  y1={geomMetrics.maxY}
+                  x2={extXEnd}
+                  y2={geomMetrics.maxY}
+                  stroke={dimColor}
+                  strokeWidth={0.75}
+                  opacity={0.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* Vertical Dimension Line */}
+                <line
+                  x1={dimX}
+                  y1={geomMetrics.minY}
+                  x2={dimX}
+                  y2={geomMetrics.maxY}
+                  stroke={dimColor}
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* CAD Oblique Ticks at Top */}
+                <line
+                  x1={dimX - tick}
+                  y1={geomMetrics.minY + tick}
+                  x2={dimX + tick}
+                  y2={geomMetrics.minY - tick}
+                  stroke={dimColor}
+                  strokeWidth={1.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* CAD Oblique Ticks at Bottom */}
+                <line
+                  x1={dimX - tick}
+                  y1={geomMetrics.maxY + tick}
+                  x2={dimX + tick}
+                  y2={geomMetrics.maxY - tick}
+                  stroke={dimColor}
+                  strokeWidth={1.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* Dimension Text Label */}
+                <text
+                  x={dimX + 8}
+                  y={geomMetrics.cy}
+                  textAnchor="start"
+                  dominantBaseline="middle"
+                  fill={dimColor}
+                  fontSize="11"
+                  fontWeight="600"
+                  fontFamily="'IBM Plex Mono', monospace"
+                  paintOrder="stroke"
+                  stroke={isBlueprint ? '#0A1014' : '#EDEAE3'}
+                  strokeWidth="4"
+                  strokeLinejoin="round"
+                >
+                  {geomMetrics.height.toFixed(2)} {units}
+                </text>
+              </g>
+            );
+          })()}
+        </g>
+      )}
     </g>
   );
 }

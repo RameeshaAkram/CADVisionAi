@@ -11,16 +11,18 @@ import {
   Layers,
   Sparkles,
   MousePointer,
-  HelpCircle
+  HelpCircle,
+  Ruler
 } from 'lucide-react';
 
 interface DrawingSheetProps {
   jobId: string;
+  drawing?: any;
   createdAt?: string;
   units?: string;
 }
 
-export default function DrawingSheet({ jobId, createdAt, units = 'mm' }: DrawingSheetProps) {
+export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, units = 'mm' }: DrawingSheetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [scale, setScale] = useState<number>(1);
@@ -32,12 +34,16 @@ export default function DrawingSheet({ jobId, createdAt, units = 'mm' }: Drawing
   const [theme, setTheme] = useState<'paper' | 'blueprint'>('paper');
   const [cursorCad, setCursorCad] = useState<{ x: number; y: number } | null>(null);
   const [showPoints, setShowPoints] = useState(false);
+  const [showDimensions, setShowDimensions] = useState(true);
 
-  const { data: drawing, isLoading, error } = useQuery({
+  const { data: drawingQuery, isLoading, error } = useQuery({
     queryKey: ['jobDrawing', jobId],
     queryFn: () => getJobDrawing(jobId),
+    enabled: !drawingProp && !!jobId,
     retry: false
   });
+
+  const drawing = drawingProp || drawingQuery;
 
   // Calculate Geometry Bounding Box & Centroid
   const geomMetrics = useMemo(() => {
@@ -65,6 +71,16 @@ export default function DrawingSheet({ jobId, createdAt, units = 'mm' }: Drawing
           maxY = Math.max(maxY, p.y);
           pointCount++;
         });
+      });
+
+      v.circles?.forEach((c: any) => {
+        holeCount++;
+        const r = c.r || 0;
+        minX = Math.min(minX, c.cx - r);
+        maxX = Math.max(maxX, c.cx + r);
+        minY = Math.min(minY, c.cy - r);
+        maxY = Math.max(maxY, c.cy + r);
+        pointCount++;
       });
     });
 
@@ -102,9 +118,9 @@ export default function DrawingSheet({ jobId, createdAt, units = 'mm' }: Drawing
     const effectiveW = containerW > 50 ? containerW : 800;
     const effectiveH = containerH > 50 ? containerH : 600;
 
-    const pad = 100; // Margin around part
-    const availW = Math.max(effectiveW - pad * 2, 80);
-    const availH = Math.max(effectiveH - pad * 2, 80);
+    const pad = 60; // Clean margin around part and dimensions
+    const availW = Math.max(effectiveW - pad * 2, 100);
+    const availH = Math.max(effectiveH - pad * 2, 100);
 
     const fitScale = Math.min(availW / geomMetrics.width, availH / geomMetrics.height);
     const clampedScale = Math.max(0.2, Math.min(fitScale, 1500));
@@ -369,6 +385,23 @@ export default function DrawingSheet({ jobId, createdAt, units = 'mm' }: Drawing
           <span className="hidden sm:inline">Vertices</span>
         </button>
 
+        {/* Toggle Dimensions */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDimensions(!showDimensions);
+          }}
+          className={`px-2 h-7 font-data text-[11px] font-medium flex items-center gap-1 rounded transition-colors ${
+            showDimensions
+              ? 'bg-[var(--cyan-500)] text-white'
+              : 'text-[var(--g-400)] hover:bg-current/10'
+          }`}
+          title="Toggle Dimensions"
+        >
+          <Ruler className="w-3 h-3" />
+          <span className="hidden sm:inline">Dims</span>
+        </button>
+
         {/* Theme Toggle: Blueprint vs Paper */}
         <button
           onClick={(e) => {
@@ -427,6 +460,9 @@ export default function DrawingSheet({ jobId, createdAt, units = 'mm' }: Drawing
                 view={view}
                 theme={theme}
                 showPoints={showPoints}
+                showDimensions={showDimensions}
+                units={effectiveUnits}
+                geomMetrics={geomMetrics || undefined}
               />
             ))}
           </g>

@@ -51,17 +51,22 @@ export default function Workspace() {
     onSuccess: () => refetch(),
   });
 
-  // Extract geometry metrics from drawing polylines
+  // Extract geometry metrics from drawing polylines and circles
   const geomSummary = useMemo(() => {
-    if (!drawing?.views?.top?.polylines) return null;
-    const polylines = drawing.views.top.polylines;
+    if (!drawing?.views?.top) return null;
+    const topView = drawing.views.top;
+    const polylines = topView.polylines || [];
+    const circles = topView.circles || [];
     const outer = polylines.find((p: any) => p.role === 'outer');
-    const holes = polylines.filter((p: any) => p.role === 'hole');
+    const polyHoles = polylines.filter((p: any) => p.role === 'hole');
+    const totalHoles = polyHoles.length + circles.length;
 
     return {
       outerPoints: outer?.points?.length || 0,
-      holeCount: holes.length,
-      totalFeatures: polylines.length,
+      holeCount: totalHoles,
+      circleHoles: circles.length,
+      polyHoles: polyHoles.length,
+      totalFeatures: polylines.length + circles.length,
     };
   }, [drawing]);
 
@@ -108,7 +113,7 @@ export default function Workspace() {
       </div>
 
       {/* Center Viewport Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-full relative bg-[var(--paper)] overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 relative bg-[var(--paper)] overflow-hidden">
         {/* Top Success / Status Banner */}
         {isCompleted && (
           <div className="z-20 bg-[rgba(255,255,255,0.98)] shrink-0 border-b border-[var(--g-700)] px-4 py-2.5 flex items-center justify-between gap-4 shadow-sm">
@@ -183,10 +188,11 @@ export default function Workspace() {
           </div>
         )}
 
-        {/* 2D CAD Canvas Viewport: Expands to fill 100% of remaining height */}
-        <div className="flex-1 w-full h-full min-h-0 relative overflow-hidden bg-[var(--paper)]">
+        {/* 2D CAD Canvas Viewport: Expands to fill remaining height */}
+        <div className="flex-1 w-full min-h-0 relative overflow-hidden bg-[var(--paper)]">
           <DrawingSheet
             jobId={jobId!}
+            drawing={drawing}
             createdAt={status?.created_at}
             units={status?.scale?.units || 'mm'}
           />
