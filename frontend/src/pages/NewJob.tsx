@@ -3,27 +3,40 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { createJob, startProcessing, type KnownDimension } from '../api/jobs';
 import { Button } from '../components/ui/Button';
-import { Field, Label } from '../components/ui/Field';
-import { Tabs, Tab } from '../components/ui/Tabs';
 import { unitOptions } from '../lib/units';
-import { X, UploadCloud, Ruler, Layers3, ArrowRight } from 'lucide-react';
+import {
+  UploadCloud,
+  Layers3,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  FileCode,
+  Box,
+  Sparkles,
+  Check
+} from 'lucide-react';
 
 interface UIFile {
   file: File;
   preview: string;
   status: 'usable' | 'warning' | 'rejected';
+  width?: number;
+  height?: number;
 }
 
 export default function NewJob() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'photo' | 'video'>('photo');
+  const [mode] = useState<'photo'>('photo');
   const [uiFiles, setUiFiles] = useState<UIFile[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
-  const [dimensions, setDimensions] = useState<KnownDimension[]>([{ label: 'Overall height', value: 0 }]);
+  // Single clear reference dimension
+  const [dimLabel, setDimLabel] = useState('Overall width');
+  const [dimValue, setDimValue] = useState<number | ''>(100);
   const [units, setUnits] = useState('mm');
-  const [thickness, setThickness] = useState(0);
-  
+  const [thickness, setThickness] = useState<number | ''>(3.0);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -32,65 +45,57 @@ export default function NewJob() {
     };
   }, [uiFiles]);
 
-  const validateFile = (file: File): 'usable' | 'warning' | 'rejected' => {
-    if (mode === 'photo') {
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'rejected';
-      if (file.size > 20 * 1024 * 1024) return 'warning'; // over 20MB is a warning/rejected? Prompt: "up to 20MB" 
-      return 'usable';
-    } else {
-      if (!['video/mp4', 'video/quicktime', 'video/webm'].includes(file.type)) return 'rejected';
-      return 'usable';
-    }
-  };
-
   const handleFiles = (newFiles: FileList | null) => {
     if (!newFiles) return;
     setErrorMsg(null);
     const filesArray = Array.from(newFiles);
-    
-    // Video mode allows exactly one video
-    if (mode === 'video' && filesArray.length > 0) {
-      const f = filesArray[0];
-      const status = validateFile(f);
-      if (status === 'rejected') {
-        setErrorMsg('MP4, MOV, and WebM only.');
-        return;
-      }
-      setUiFiles([{ file: f, preview: URL.createObjectURL(f), status }]);
-      return;
-    }
+    if (filesArray.length === 0) return;
 
-    // Photo mode
     const toAdd: UIFile[] = [];
     let rejectedCount = 0;
+
     filesArray.forEach(f => {
-      const status = validateFile(f);
-      if (status === 'rejected') {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) {
         rejectedCount++;
-      } else {
-        toAdd.push({ file: f, preview: URL.createObjectURL(f), status });
+        return;
       }
+      const previewUrl = URL.createObjectURL(f);
+      const fileObj: UIFile = {
+        file: f,
+        preview: previewUrl,
+        status: f.size > 20 * 1024 * 1024 ? 'warning' : 'usable',
+      };
+
+      // Load natural dimensions
+      const img = new Image();
+      img.onload = () => {
+        setUiFiles(prev => prev.map(item => item.preview === previewUrl ? { ...item, width: img.naturalWidth, height: img.naturalHeight } : item));
+      };
+      img.src = previewUrl;
+
+      toAdd.push(fileObj);
     });
 
     if (rejectedCount > 0) {
-      setErrorMsg('PNG, JPG, and WebP only. Some files were not uploaded.');
+      setErrorMsg('Accepted formats: PNG, JPG, or WebP. Non-image files were skipped.');
     }
-    setUiFiles(prev => [...prev, ...toAdd]);
-  };
 
-  const handleModeSwitch = (newMode: 'photo' | 'video') => {
-    if (uiFiles.length > 0) {
-      if (!window.confirm('Switching modes will clear your current files. Continue?')) return;
-      setUiFiles([]);
+    if (toAdd.length > 0) {
+      // Primary workflow: one primary image for 2D CAD reconstruction
+      setUiFiles(toAdd);
     }
-    setMode(newMode);
-    setErrorMsg(null);
   };
 
   const createMutation = useMutation({
     mutationFn: async () => {
       const validFiles = uiFiles.filter(f => f.status !== 'rejected').map(f => f.file);
-      const resp = await createJob(mode, units, dimensions, thickness, validFiles);
+      if (validFiles.length === 0) throw new Error('Please select a part image.');
+      const numValue = typeof dimValue === 'number' ? dimValue : parseFloat(String(dimValue));
+      if (!numValue || numValue <= 0) throw new Error('Please enter a valid known dimension (> 0).');
+      const numThickness = typeof thickness === 'number' ? thickness : (parseFloat(String(thickness)) || 1.0);
+
+      const dims: KnownDimension[] = [{ label: dimLabel, value: numValue }];
+      const resp = await createJob(mode, units, dims, numThickness, validFiles);
       await startProcessing(resp.job_id);
       return resp.job_id;
     },
@@ -102,205 +107,396 @@ export default function NewJob() {
     }
   });
 
-  const canSubmit = uiFiles.filter(f => f.status !== 'rejected').length > 0 && dimensions.some(d => d.value > 0) && thickness > 0 && !!units;
-  const isSubmitting = createMutation.isPending;
+  const selectedFile = uiFiles[0];
+  const hasValidFile = uiFiles.length > 0 && uiFiles[0].status !== 'rejected';
+  const hasValidDimension = typeof dimValue === 'number' ? dimValue > 0 : (parseFloat(String(dimValue)) > 0);
+  const hasValidThickness = typeof thickness === 'number' ? thickness > 0 : (parseFloat(String(thickness)) > 0);
+  const canSubmit = hasValidFile && hasValidDimension && hasValidThickness && !createMutation.isPending;
 
   return (
-    <div className="max-w-[1180px] mx-auto w-full px-5 py-8 md:px-10 md:py-12">
-      <div className="page-intro mb-9">
-        <div className="eyebrow mb-3">CADVision AI / New job</div>
-        <h1 className="text-[34px] md:text-[42px] font-semibold leading-[1.05] tracking-[-0.03em] mb-4">Turn reference photos into a CAD starting point.</h1>
-        <p className="text-[16px] leading-[25px] text-[var(--g-300)]">Upload a clean view, add a measured reference, and receive a scaled DXF profile plus an extruded STL for review.</p>
+    <div className="flex-1 w-full max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 py-8 md:py-12">
+
+      {/* Hero Header */}
+      <div className="mb-8 md:mb-10">
+        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-[4px] bg-[var(--cyan-ghost)] border border-[rgba(44,192,212,0.25)] text-[11px] font-data text-[var(--cyan-400)] uppercase tracking-wider mb-3">
+          <Sparkles className="w-3 h-3" />
+          <span>AI-Powered Reverse Engineering</span>
+        </div>
+        <h1 className="text-[32px] sm:text-[40px] md:text-[44px] font-bold tracking-tight text-[var(--g-100)] leading-[1.08] mb-3">
+          Turn a part image into <span className="text-[var(--cyan-400)]">CAD-ready geometry</span>.
+        </h1>
+        <p className="text-[15px] sm:text-[16px] text-[var(--g-300)] max-w-[720px] leading-relaxed">
+          Upload a mechanical part image, provide one known dimension, and generate a scaled CAD drawing with exact closed contours and detected internal holes.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5 items-start">
-        <div className="flex flex-col gap-4">
-          <section className="step-card step-card-active p-5 md:p-6">
-            <div className="flex items-start gap-3 mb-5"><span className="step-number">01</span><div><h2 className="text-[18px] font-semibold">Add reference media</h2><p className="text-[13px] text-[var(--g-400)] mt-1">Use photos for flat parts. Multiple angles improve the outline.</p></div></div>
-
-      <Tabs className="mb-5">
-        <Tab selected={mode === 'photo'} onClick={() => handleModeSwitch('photo')}>Photos</Tab>
-        <Tab selected={mode === 'video'} onClick={() => handleModeSwitch('video')}>Video</Tab>
-      </Tabs>
-
-      <div 
-        className="dropzone cursor-pointer"
-        onClick={() => fileInputRef.current?.click()}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
-      >
-        <input 
-          type="file" 
-          hidden 
-          multiple={mode === 'photo'} 
-          ref={fileInputRef} 
-          onChange={(e) => handleFiles(e.target.files)} 
-          accept={mode === 'photo' ? "image/jpeg,image/png,image/webp" : "video/mp4,video/quicktime,video/webm"}
-        />
-        <div className="dropzone-icon"><UploadCloud className="w-5 h-5" /></div>
-        <b className="font-semibold text-[16px] leading-[22px] block text-[var(--g-100)]">
-          {mode === 'photo' ? 'Drop photos here, or browse' : 'Drop a video here, or browse'}
-        </b>
-        <span className="font-normal text-[12px] leading-[18px] font-data text-[var(--g-400)] mt-2 block">
-          {mode === 'photo' ? 'JPG, PNG, or WebP · as many views as you have' : 'MP4, MOV, or WebM · one clip from multiple angles'}
-        </span>
+      {/* Workflow Explainer Banner */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { step: '01', title: 'Upload Image', desc: 'Flat mechanical part photo or CAD drawing' },
+          { step: '02', title: 'Known Dimension', desc: 'Single reference measurement for scaling' },
+          { step: '03', title: 'Generate CAD', desc: 'Autonomous contour and hole extraction' },
+          { step: '04', title: 'Export Outputs', desc: 'Standard 2D DXF and 3D STL files' },
+        ].map((item, idx) => (
+          <div
+            key={idx}
+            className="p-3.5 rounded-[6px] bg-[var(--surface)] border border-[var(--g-700)] flex flex-col justify-between shadow-sm relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-data font-bold text-[var(--cyan-400)]">{item.step}</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-[var(--g-600)]" />
+            </div>
+            <div>
+              <div className="text-[13px] font-semibold text-[var(--g-100)] leading-snug">{item.title}</div>
+              <div className="text-[11px] text-[var(--g-400)] mt-0.5 leading-snug">{item.desc}</div>
+            </div>
+          </div>
+        ))}
       </div>
-      
-      <p className="text-[12px] leading-[18px] text-[var(--g-400)] text-center mt-3">Best results: even lighting, plain background, camera parallel to the part.</p>
 
-      {uiFiles.length > 0 && (
-        <div className="flex gap-3 mt-5 items-center flex-wrap">
-          <div className="flex gap-1.5 flex-wrap">
-            {uiFiles.map((uf, i) => (
-              <div key={i} className="w-[52px] h-[52px] bg-[var(--g-800)] border border-[var(--g-700)] rounded-[3px] relative overflow-hidden flex-shrink-0 group">
-                {mode === 'photo' ? (
-                  <img src={uf.preview} alt="" className="w-full h-full object-cover opacity-80" />
-                ) : (
-                  <video src={uf.preview} className="w-full h-full object-cover opacity-80" />
-                )}
-                <div className="absolute bottom-[3px] right-[4px] text-[11px] font-data leading-none drop-shadow-md">
-                  {uf.status === 'usable' && <span className="text-[var(--cyan-400)]">●</span>}
-                  {uf.status === 'warning' && <span className="text-[var(--amber-400)]">◐</span>}
-                  {uf.status === 'rejected' && <span className="text-[var(--red-400)]">○</span>}
+      {/* Main Grid: Upload & Controls + Live Summary Card */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
+
+        {/* Left Column: Form Steps */}
+        <div className="flex flex-col gap-6">
+
+          {/* Error Banner */}
+          {errorMsg && (
+            <div className="p-3.5 rounded-[6px] bg-[var(--surface)] border border-[rgba(244,112,94,0.4)] border-l-4 border-l-[var(--red-400)] flex items-start gap-3 shadow-sm">
+              <AlertCircle className="w-5 h-5 text-[var(--red-400)] shrink-0 mt-0.5" />
+              <div className="text-[13px] text-[var(--g-200)] flex-1 leading-snug">
+                <strong className="block text-[var(--red-400)] font-semibold mb-0.5">Input Requirement</strong>
+                {errorMsg}
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: Upload Part Image */}
+          <section className="p-5 sm:p-6 rounded-[8px] bg-[var(--surface)] border border-[var(--g-700)] shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="w-7 h-7 rounded-full bg-[var(--cyan-500)] text-[var(--cyan-ink)] font-data font-bold text-[12px] flex items-center justify-center">
+                  1
+                </span>
+                <div>
+                  <h2 className="text-[17px] font-semibold text-[var(--g-100)]">Part Image</h2>
+                  <p className="text-[12px] text-[var(--g-400)]">Upload a flat-lay photo or white CAD fixture</p>
                 </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setUiFiles(uiFiles.filter((_, idx) => idx !== i)); }}
-                  className="absolute inset-0 bg-black/50 text-white items-center justify-center hidden group-hover:flex"
+              </div>
+              {hasValidFile && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-[var(--cyan-ghost)] text-[var(--cyan-400)] text-[11px] font-data font-medium border border-[rgba(44,192,212,0.3)]">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Ready
+                </span>
+              )}
+            </div>
+
+            {/* Dropzone or Preview */}
+            {!selectedFile ? (
+              <div
+                className={`dropzone cursor-pointer p-8 transition-all relative rounded-[6px] ${
+                  isDragOver ? 'border-[var(--cyan-400)] bg-[var(--cyan-ghost)]' : ''
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                onDragLeave={() => setIsDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(false);
+                  handleFiles(e.dataTransfer.files);
+                }}
+              >
+                <input
+                  type="file"
+                  hidden
+                  ref={fileInputRef}
+                  onChange={(e) => handleFiles(e.target.files)}
+                  accept="image/jpeg,image/png,image/webp"
+                />
+                <div className="w-12 h-12 rounded-full bg-[var(--cyan-ghost)] border border-[rgba(44,192,212,0.3)] flex items-center justify-center text-[var(--cyan-400)] mb-3">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <div className="text-[15px] font-semibold text-[var(--g-100)] text-center mb-1">
+                  Drag & drop your part image here
+                </div>
+                <p className="text-[12px] text-[var(--g-400)] text-center mb-4">
+                  Supports PNG, JPG, or WebP up to 20MB
+                </p>
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-[4px] bg-[var(--g-800)] hover:bg-[var(--g-700)] text-[var(--g-100)] text-[13px] font-medium border border-[var(--g-600)] transition-colors shadow-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
                 >
-                  <X className="w-4 h-4" />
+                  Browse Image
                 </button>
               </div>
-            ))}
-          </div>
-          <div className="ml-3 font-data text-[12px] leading-[19px] text-[var(--g-400)]">
-            {uiFiles.length} file{uiFiles.length !== 1 && 's'} · 
-            <span className="text-[var(--cyan-400)] ml-1">{uiFiles.filter(f => f.status === 'usable').length} usable</span>
-            {uiFiles.some(f => f.status === 'warning') && <span className="text-[var(--amber-400)] ml-1">· {uiFiles.filter(f => f.status === 'warning').length} soft warning</span>}
-            {uiFiles.some(f => f.status === 'rejected') && <span className="text-[var(--red-400)] ml-1">· {uiFiles.filter(f => f.status === 'rejected').length} rejected</span>}
-          </div>
-        </div>
-      )}
+            ) : (
+              <div className="border border-[var(--g-700)] rounded-[6px] p-4 bg-[var(--g-850)] flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-16 h-16 rounded-[4px] border border-[var(--g-700)] overflow-hidden bg-white shrink-0 flex items-center justify-center">
+                    <img
+                      src={selectedFile.preview}
+                      alt="Part preview"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[14px] text-[var(--g-100)] truncate">
+                      {selectedFile.file.name}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] font-data text-[var(--g-400)]">
+                      <span>{(selectedFile.file.size / 1024).toFixed(1)} KB</span>
+                      {selectedFile.width && selectedFile.height && (
+                        <>
+                          <span>•</span>
+                          <span className="text-[var(--cyan-400)]">{selectedFile.width} × {selectedFile.height} px</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-[4px] bg-[var(--g-800)] hover:bg-[var(--g-700)] text-[var(--g-100)] text-[12px] font-medium border border-[var(--g-600)] transition-colors"
+                  >
+                    Change Image
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUiFiles([]);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="px-3 py-1.5 rounded-[4px] text-[var(--red-400)] hover:bg-[var(--red-ghost)] text-[12px] font-medium transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 flex items-center gap-2 text-[11px] text-[var(--g-400)] font-data">
+              <span className="text-[var(--cyan-400)] font-bold">PRO TIP:</span>
+              <span>For highest accuracy, use a flat part on a solid white or contrasting background.</span>
+            </div>
           </section>
 
-      {errorMsg && (
-        <div className="bg-[var(--g-850)] border border-[rgba(224,73,47,0.35)] border-l-[2px] border-l-[var(--red-400)] rounded-[4px] p-3 flex gap-2.5 items-start mb-8">
-          <span className="text-[var(--red-400)] font-semibold text-[13px] leading-[17px]">○</span>
-          <div>
-            <b className="font-semibold text-[13px] leading-[17px] text-[var(--red-400)] block">{errorMsg}</b>
-          </div>
-        </div>
-      )}
+          {/* Step 2: Reference Dimension & Material */}
+          <section className="p-5 sm:p-6 rounded-[8px] bg-[var(--surface)] border border-[var(--g-700)] shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="w-7 h-7 rounded-full bg-[var(--cyan-500)] text-[var(--cyan-ink)] font-data font-bold text-[12px] flex items-center justify-center">
+                2
+              </span>
+              <div>
+                <h2 className="text-[17px] font-semibold text-[var(--g-100)]">Known Dimension</h2>
+                <p className="text-[12px] text-[var(--g-400)]">
+                  Enter one real-world measurement to calibrate pixel scale to engineering units
+                </p>
+              </div>
+            </div>
 
-          <section className="step-card p-5 md:p-6">
-        <div className="flex items-start gap-3 mb-5"><span className="step-number">02</span><div><h2 className="text-[18px] font-semibold">Set scale and thickness</h2><p className="text-[13px] text-[var(--g-400)] mt-1">At least one measured dimension anchors the generated profile.</p></div></div>
-      
-      {dimensions.map((dim, idx) => (
-        <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1.4fr_0.8fr_0.8fr_auto] gap-2.5 items-end max-w-[640px] mb-3">
-          <div>
-            <Label>Measurement</Label>
-            <select 
-              className="field h-[36px] w-full px-2.5 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[3px] text-[var(--g-100)]"
-              value={dim.label}
-              onChange={e => {
-                const newDims = [...dimensions];
-                newDims[idx].label = e.target.value;
-                setDimensions(newDims);
-              }}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="sm:col-span-1">
+                <label className="block text-[12px] font-medium text-[var(--g-300)] mb-1.5">
+                  Measurement Type
+                </label>
+                <select
+                  value={dimLabel}
+                  onChange={(e) => setDimLabel(e.target.value)}
+                  className="w-full h-10 px-3 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[4px] text-[13px] text-[var(--g-100)] focus:border-[var(--cyan-500)] focus:outline-none transition-colors"
+                >
+                  <option value="Overall width">Overall width</option>
+                  <option value="Overall height">Overall height</option>
+                  <option value="Overall length">Overall length</option>
+                  <option value="Feature dimension">Feature dimension</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-1">
+                <label className="block text-[12px] font-medium text-[var(--g-300)] mb-1.5">
+                  Dimension Value <span className="text-[var(--cyan-400)]">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0.001"
+                  value={dimValue}
+                  onChange={(e) => setDimValue(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                  placeholder="e.g. 100"
+                  className="w-full h-10 px-3 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[4px] text-[14px] font-data text-[var(--g-100)] text-right focus:border-[var(--cyan-500)] focus:outline-none transition-colors"
+                />
+              </div>
+
+              <div className="sm:col-span-1">
+                <label className="block text-[12px] font-medium text-[var(--g-300)] mb-1.5">
+                  Unit
+                </label>
+                <select
+                  value={units}
+                  onChange={(e) => setUnits(e.target.value)}
+                  className="w-full h-10 px-3 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[4px] text-[13px] font-data text-[var(--g-100)] focus:border-[var(--cyan-500)] focus:outline-none transition-colors"
+                >
+                  {unitOptions.map(u => (
+                    <option key={u.value} value={u.value}>{u.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Thickness input */}
+            <div className="pt-3 border-t border-[var(--g-700)] mt-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-[13px] font-medium text-[var(--g-100)]">
+                    Extrusion Thickness ({units})
+                  </div>
+                  <div className="text-[11px] text-[var(--g-400)]">
+                    Depth used to extrude the solid 3D STL model
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[1.0, 3.0, 5.0].map((tVal) => (
+                    <button
+                      key={tVal}
+                      type="button"
+                      onClick={() => setThickness(tVal)}
+                      className={`px-2.5 py-1 rounded-[3px] text-[11px] font-data border transition-colors ${
+                        thickness === tVal
+                          ? 'bg-[var(--cyan-ghost)] text-[var(--cyan-400)] border-[rgba(44,192,212,0.4)] font-bold'
+                          : 'bg-[var(--g-800)] text-[var(--g-300)] border-[var(--g-700)] hover:text-[var(--g-100)]'
+                      }`}
+                    >
+                      {tVal} {units}
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.1"
+                    value={thickness}
+                    onChange={(e) => setThickness(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                    className="w-20 h-8 px-2 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[4px] text-[12px] font-data text-[var(--g-100)] text-right focus:border-[var(--cyan-500)] focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Step 3: Main Call To Action */}
+          <section className="p-5 rounded-[8px] bg-[var(--surface)] border border-[var(--g-700)] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="text-[14px] font-semibold text-[var(--g-100)]">
+                Ready to Generate CAD
+              </div>
+              <div className="text-[12px] text-[var(--g-400)] mt-0.5">
+                Produces DXF (2D drawing with CUT/HOLES) & STL (watertight mesh)
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              onClick={() => createMutation.mutate()}
+              disabled={!canSubmit}
+              isLoading={createMutation.isPending}
+              loadingText="Initializing..."
+              className="min-w-[180px] h-11 px-6 text-[14px] font-semibold shadow-md flex items-center justify-center gap-2"
             >
-              <option>Overall height</option>
-              <option>Overall width</option>
-              <option>Overall length</option>
-              <option>Other</option>
-            </select>
-          </div>
-          <div>
-            <Label>Value</Label>
-            <Field 
-              numeric 
-              type="number" 
-              step="any"
-              min="0"
-              value={dim.value || ''}
-              onChange={e => {
-                const newDims = [...dimensions];
-                newDims[idx].value = parseFloat(e.target.value) || 0;
-                setDimensions(newDims);
-              }}
-            />
-          </div>
-          <div>
-            <Label>Unit</Label>
-            <select 
-              className="field h-[36px] w-full px-2.5 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[3px] text-[var(--g-100)]"
-              value={units}
-              onChange={e => setUnits(e.target.value)}
-            >
-              {unitOptions.map(u => (
-                <option key={u.value} value={u.value}>{u.label}</option>
-              ))}
-            </select>
-          </div>
-          {idx === dimensions.length - 1 && (
-            <Button variant="ghost" onClick={() => setDimensions([...dimensions, { label: 'Other', value: 0 }])}>
-              + Add another
+              <span>Generate CAD Drawing</span>
+              <ArrowRight className="w-4 h-4" />
             </Button>
-          )}
-        </div>
-      ))}
-      <div className="text-[11px] leading-[14px] text-[var(--g-500)] mt-1.5 mb-7">
-        One measurement is required. Two or more improves accuracy.
-      </div>
-
-      <div className="max-w-[220px] mb-7">
-        <Label>Material thickness ({unitOptions.find(u => u.value === units)?.label || units})</Label>
-        <Field
-          numeric
-          type="number"
-          step="any"
-          min="0"
-          value={thickness || ''}
-          onChange={e => setThickness(parseFloat(e.target.value) || 0)}
-        />
-        <div className="text-[11px] leading-[14px] text-[var(--g-500)] mt-1.5">
-          Used to create the 3D STL extrusion.
-        </div>
-      </div>
           </section>
 
-          <section className="step-card p-5 md:p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-            <div><div className="eyebrow mb-1">03 / Generate</div><div className="text-[14px] text-[var(--g-300)]">Creates a reviewable DXF and STL from the visible profile.</div></div>
-      <div className="flex items-center gap-3">
-        <Button 
-          variant="primary" 
-          onClick={() => createMutation.mutate()} 
-          disabled={!canSubmit || isSubmitting}
-          isLoading={isSubmitting}
-          loadingText="Starting..."
-          className="min-w-[140px]"
-        >
-          Generate CAD <ArrowRight className="w-4 h-4" />
-        </Button>
-        {!canSubmit && !isSubmitting && (
-          <span className="text-[11px] leading-[14px] text-[var(--g-500)]">
-            Add an input file, dimension, and material thickness &gt; 0
-          </span>
-        )}
-      </div>
-          </section>
         </div>
 
-        <aside className="step-card p-5 lg:sticky lg:top-6">
-          <div className="flex items-center gap-2 mb-5"><Layers3 className="w-4 h-4 text-[var(--cyan-400)]" /><h2 className="font-semibold">Output preview</h2></div>
-          <div className="border border-[var(--g-700)] bg-[var(--g-950)] p-4 mb-5">
-            <div className="flex items-center justify-between mb-3"><span className="text-[12px] text-[var(--g-400)]">Profile status</span><span className="status-pill"><span className="status-dot text-[var(--g-500)]" /> Waiting for input</span></div>
-            <div className="h-[112px] border border-dashed border-[var(--g-700)] flex items-center justify-center text-[var(--g-500)]"><Ruler className="w-5 h-5" /></div>
+        {/* Right Column: CAD Output Spec Preview */}
+        <aside className="p-5 rounded-[8px] bg-[var(--surface)] border border-[var(--g-700)] shadow-sm lg:sticky lg:top-20 flex flex-col gap-5">
+          <div className="flex items-center gap-2 pb-3 border-b border-[var(--g-700)]">
+            <Layers3 className="w-4 h-4 text-[var(--cyan-400)]" />
+            <h3 className="font-semibold text-[14px] text-[var(--g-100)]">Export Deliverables</h3>
           </div>
-          <div className="flex flex-col gap-3 text-[13px]">
-            <div className="flex justify-between"><span className="text-[var(--g-400)]">2D profile</span><span className="font-data text-[var(--g-300)]">DXF</span></div>
-            <div className="flex justify-between"><span className="text-[var(--g-400)]">Solid preview</span><span className="font-data text-[var(--g-300)]">STL</span></div>
-            <div className="section-rule pt-3 text-[12px] leading-[18px] text-[var(--amber-400)]">Generated geometry is an approximation. Verify dimensions before fabrication.</div>
+
+          {/* Deliverables List */}
+          <div className="space-y-3 text-[13px]">
+            <div className="p-3 rounded-[6px] bg-[var(--g-850)] border border-[var(--g-700)]">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-semibold text-[var(--g-100)] flex items-center gap-1.5">
+                  <FileCode className="w-4 h-4 text-[var(--cyan-400)]" /> DXF 2D Drawing
+                </span>
+                <span className="text-[10px] font-data px-1.5 py-0.5 rounded bg-[var(--cyan-ghost)] text-[var(--cyan-400)] border border-[rgba(44,192,212,0.2)]">
+                  CAM Ready
+                </span>
+              </div>
+              <p className="text-[11px] text-[var(--g-400)] leading-normal">
+                Layered vector profile: <code className="text-[var(--g-300)]">CUT</code> (outer loop) & <code className="text-[var(--g-300)]">HOLES</code> (internal features).
+              </p>
+            </div>
+
+            <div className="p-3 rounded-[6px] bg-[var(--g-850)] border border-[var(--g-700)]">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-semibold text-[var(--g-100)] flex items-center gap-1.5">
+                  <Box className="w-4 h-4 text-[var(--cyan-400)]" /> STL 3D Model
+                </span>
+                <span className="text-[10px] font-data px-1.5 py-0.5 rounded bg-[var(--g-800)] text-[var(--g-300)] border border-[var(--g-700)]">
+                  3D Print
+                </span>
+              </div>
+              <p className="text-[11px] text-[var(--g-400)] leading-normal">
+                Watertight extruded solid with subtractive hole geometry.
+              </p>
+            </div>
+          </div>
+
+          {/* Validation Checklist */}
+          <div className="pt-2 border-t border-[var(--g-700)] space-y-2">
+            <div className="text-[11px] font-data uppercase tracking-wider text-[var(--g-400)] mb-1">
+              Readiness Checklist
+            </div>
+
+            <div className="flex items-center gap-2 text-[12px]">
+              {hasValidFile ? (
+                <Check className="w-3.5 h-3.5 text-[var(--cyan-400)]" />
+              ) : (
+                <div className="w-3.5 h-3.5 rounded-full border border-[var(--g-600)]" />
+              )}
+              <span className={hasValidFile ? 'text-[var(--g-200)]' : 'text-[var(--g-500)]'}>
+                Part image uploaded
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-[12px]">
+              {hasValidDimension ? (
+                <Check className="w-3.5 h-3.5 text-[var(--cyan-400)]" />
+              ) : (
+                <div className="w-3.5 h-3.5 rounded-full border border-[var(--g-600)]" />
+              )}
+              <span className={hasValidDimension ? 'text-[var(--g-200)]' : 'text-[var(--g-500)]'}>
+                Reference scale dimension set ({dimValue || 0} {units})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-[12px]">
+              {hasValidThickness ? (
+                <Check className="w-3.5 h-3.5 text-[var(--cyan-400)]" />
+              ) : (
+                <div className="w-3.5 h-3.5 rounded-full border border-[var(--g-600)]" />
+              )}
+              <span className={hasValidThickness ? 'text-[var(--g-200)]' : 'text-[var(--g-500)]'}>
+                Extrusion thickness set ({thickness || 0} {units})
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-[4px] bg-[var(--g-850)] border border-[var(--g-700)] text-[11px] text-[var(--g-400)] leading-relaxed">
+            <strong className="text-[var(--g-200)] block mb-0.5">Engineering Note</strong>
+            CADVision extracts contours using classical computer vision. Verify critical tolerances before machining.
           </div>
         </aside>
+
       </div>
     </div>
   );
