@@ -1,0 +1,47 @@
+{
+  "image": "simple_plate_tilt35.png",
+  "reference_width_mm": 100,
+  "reference_height_mm": 75,
+  "outer_shape": "rectangle",
+  "outer_vertex_count": 4,
+  "holes": [
+    {
+      "type": "circle",
+      "center_mm": [
+        15.0,
+        15.0
+      ],
+      "radius_mm": 5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        85.0,
+        15.0
+      ],
+      "radius_mm": 5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        85.0,
+        60.0
+      ],
+      "radius_mm": 5
+    },
+    {
+      "type": "circle",
+      "center_mm": [
+        15.0,
+        60.0
+      ],
+      "radius_mm": 5
+    }
+  ],
+  "expected_hole_count": 4,
+  "tolerance_pct": 1.0,
+  "tolerance_abs_mm": 0.5,
+  "degradation": "perspective_tilt_35deg",
+  "expected_status": "rejected_excessive_tilt",
+  "rejection_reason": "Camera perspective tilt exceeds 30\u00b0 limit (35\u00b0)."
+}

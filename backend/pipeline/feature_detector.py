@@ -21,6 +21,20 @@ def detect(images: list[NormalizedImage], components: list = None) -> dict:
     img = cv2.imread(img_meta.stored_path)
     if img is None:
         return {"contours": [], "warnings": ["Could not read image."]}
+
+    # Perspective tilt detection and rectification
+    from backend.pipeline.perspective_rectifier import rectify
+    rectified_img, tilt_deg, tilt_status, tilt_err = rectify(img)
+    if tilt_status == "rejected_excessive_tilt":
+        return {
+            "contours": [],
+            "warnings": [tilt_err],
+            "rejected": True,
+            "rejection_reason": tilt_err,
+            "tilt_deg": tilt_deg,
+        }
+    if rectified_img is not None and tilt_status == "rectified":
+        img = rectified_img
         
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape

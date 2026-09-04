@@ -82,6 +82,13 @@ def run_pipeline_on_image(img_path: Path, ref_width_mm: float, ref_height_mm: fl
         {"label": "main_object", "image_index": 0}
     ])
 
+    if features.get("rejected"):
+        return {
+            "features": features,
+            "rejected": True,
+            "rejection_reason": features.get("rejection_reason", ""),
+        }
+
     known_dims = [
         {"label": "width", "value": ref_width_mm},
         {"label": "height", "value": ref_height_mm},
@@ -291,6 +298,42 @@ def validate_image(img_path: Path, gt: dict) -> dict:
     except Exception as e:
         result["error"] = str(e)
         result["checks"] = {f"check_{i}": {"ok": False, "detail": str(e)} for i in range(1, 8)}
+        return result
+
+    # Handle excessive tilt rejection
+    if pipeline_out.get("rejected"):
+        is_expected = (
+            gt.get("expected_status") == "rejected_excessive_tilt"
+            or gt.get("max_tilt_exceeded", False)
+        )
+        reason = pipeline_out.get("rejection_reason", "")
+        if is_expected and ("exceeds 30" in reason or "30°" in reason or "excessive" in reason.lower()):
+            for cn in [
+                "1_file_validity", "2_layer_correctness", "3_topology",
+                "4_dimensional", "5_primitive_fidelity", "6_editability", "7_repeatability"
+            ]:
+                result["checks"][cn] = {"ok": True, "detail": f"Cleanly rejected: {reason[:40]}..."}
+            result["pass"] = True
+            return result
+        else:
+            result["error"] = f"Unexpected rejection: {reason}"
+            for cn in [
+                "1_file_validity", "2_layer_correctness", "3_topology",
+                "4_dimensional", "5_primitive_fidelity", "6_editability", "7_repeatability"
+            ]:
+                result["checks"][cn] = {"ok": False, "detail": result["error"]}
+            result["pass"] = False
+            return result
+
+    if gt.get("expected_status") == "rejected_excessive_tilt" or gt.get("max_tilt_exceeded", False):
+        err = "Expected rejection (>30° tilt) but pipeline proceeded to export."
+        result["error"] = err
+        for cn in [
+            "1_file_validity", "2_layer_correctness", "3_topology",
+            "4_dimensional", "5_primitive_fidelity", "6_editability", "7_repeatability"
+        ]:
+            result["checks"][cn] = {"ok": False, "detail": err}
+        result["pass"] = False
         return result
 
     dxf_path = pipeline_out["dxf_path"]

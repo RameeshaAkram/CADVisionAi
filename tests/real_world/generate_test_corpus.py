@@ -480,6 +480,44 @@ def gen_degraded_noise(source="triangle_gusset.png"):
     _save(name, noisy, gt)
 
 
+def gen_perspective_tilt(source="simple_plate.png", tilt_deg=15):
+    """3D perspective projection simulating camera tilt about the horizontal axis."""
+    img = _load_clean(source)
+    h, w = img.shape
+    cx, cy = w / 2.0, h / 2.0
+    hw, hh = 250.0, 187.5  # 500x375 px (100x75 mm)
+    src_corners = np.array([
+        [cx - hw, cy - hh], [cx + hw, cy - hh],
+        [cx + hw, cy + hh], [cx - hw, cy + hh]
+    ], dtype=np.float32)
+
+    d = 1200.0
+    rad = math.radians(tilt_deg)
+    dst_corners = []
+    for x, y in src_corners:
+        X = x - cx
+        Y = y - cy
+        Z = d + Y * math.sin(rad)
+        xp = cx + 1200.0 * X / Z
+        yp = cy + 1200.0 * (Y * math.cos(rad)) / Z
+        dst_corners.append([xp, yp])
+
+    H = cv2.getPerspectiveTransform(src_corners, np.array(dst_corners, dtype=np.float32))
+    tilted = cv2.warpPerspective(img, H, (w, h), borderValue=255)
+
+    gt = _load_gt(source)
+    name = source.replace(".png", f"_tilt{tilt_deg}.png")
+    gt["image"] = name
+    gt["degradation"] = f"perspective_tilt_{tilt_deg}deg"
+    if tilt_deg > 30:
+        gt["expected_status"] = "rejected_excessive_tilt"
+        gt["rejection_reason"] = f"Camera perspective tilt exceeds 30° limit ({tilt_deg}°)."
+    else:
+        gt["tolerance_pct"] = max(gt.get("tolerance_pct", 1.0), 2.0)
+        gt["tolerance_abs_mm"] = max(gt.get("tolerance_abs_mm", 0.5), 0.8)
+    _save(name, tilted, gt)
+
+
 def main():
     IMG_DIR.mkdir(parents=True, exist_ok=True)
     GT_DIR.mkdir(parents=True, exist_ok=True)
@@ -488,9 +526,13 @@ def main():
     gen_oblong_slot(); gen_mounting_plate(); gen_gasket_ring(); gen_triangle_gusset()
     gen_hex_plate(); gen_notched_rect(); gen_large_plate(); gen_small_washer()
     gen_diamond_plate(); gen_pcb_outline(); gen_rounded_rect()
-    print("\nGenerating 5 degraded variants...")
+    print("\nGenerating degraded variants...")
     gen_degraded_blur(); gen_degraded_tilt(); gen_degraded_uneven_light()
     gen_degraded_jpeg(); gen_degraded_noise()
+    print("\nGenerating perspective tilt test cases (15°, 25°, 35°)...")
+    gen_perspective_tilt("simple_plate.png", 15)
+    gen_perspective_tilt("simple_plate.png", 25)
+    gen_perspective_tilt("simple_plate.png", 35)
     print(f"\nDone. {len(list(IMG_DIR.glob('*.png')))} images in {IMG_DIR}")
 
 if __name__ == "__main__":
