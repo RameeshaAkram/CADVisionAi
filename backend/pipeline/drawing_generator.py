@@ -42,6 +42,21 @@ def generate(features: dict, measurements: list, scale_factor: float, scale_y: f
             {"x": p["x"] * scale_factor, "y": p["y"] * scale_y}
             for p in points
         ]
+
+        # Normalize winding direction per CAD/DXF convention:
+        # Outer contour must be CCW (signed area > 0), holes must be CW (signed area < 0)
+        n = len(scaled_points)
+        if n >= 3:
+            signed_area = 0.5 * sum(
+                scaled_points[k]["x"] * scaled_points[(k + 1) % n]["y"]
+                - scaled_points[(k + 1) % n]["x"] * scaled_points[k]["y"]
+                for k in range(n)
+            )
+            if role == "outer" and signed_area < 0:
+                scaled_points.reverse()
+            elif role == "hole" and signed_area > 0:
+                scaled_points.reverse()
+
         views["top"]["polylines"].append({
             "role": role,
             "is_closed": contour.get("is_closed", True),

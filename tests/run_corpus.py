@@ -147,46 +147,13 @@ def check_layer_correctness(dxf_path: Path, gt: dict) -> dict:
         return {"ok": False, "detail": str(e), "cut_count": 0, "holes_count": 0}
 
 
+from backend.pipeline.validator import _check_topology
+
+
 def check_topology(dxf_path: Path, drawing: dict) -> dict:
-    """Check 3: Closed contours, Shapely is_valid, holes inside outer."""
-    issues = []
+    """Check 3: Calls production validator._check_topology (single source of truth)."""
     try:
-        polylines = drawing.get("views", {}).get("top", {}).get("polylines", [])
-        circles = drawing.get("views", {}).get("top", {}).get("circles", [])
-
-        outer_pts = None
-        hole_polys = []
-
-        for poly in polylines:
-            pts = [(p["x"], p["y"]) for p in poly.get("points", [])]
-            if len(pts) < 3:
-                issues.append(f"Polyline with <3 points (role={poly.get('role')})")
-                continue
-            if not poly.get("is_closed", True):
-                issues.append(f"Open polyline (role={poly.get('role')})")
-            shp = Polygon(pts)
-            if not shp.is_valid:
-                issues.append(f"Invalid polygon (role={poly.get('role')}): {shp.explain_validity()}")
-            if poly.get("role") == "outer":
-                outer_pts = pts
-                outer_poly = shp
-            elif poly.get("role") == "hole":
-                hole_polys.append(shp)
-
-        # Check holes from circle entities too
-        for circ in circles:
-            cx, cy, r = circ["cx"], circ["cy"], circ["r"]
-            hole_polys.append(Point(cx, cy).buffer(r))
-
-        # Containment check
-        if outer_pts and hole_polys:
-            outer_shp = Polygon(outer_pts)
-            for i, hp in enumerate(hole_polys):
-                if not outer_shp.contains(hp.centroid):
-                    issues.append(f"Hole {i} centroid is outside outer contour")
-
-        ok = len(issues) == 0
-        return {"ok": ok, "detail": "; ".join(issues) if issues else "topology OK", "issues": issues}
+        return _check_topology(drawing)
     except Exception as e:
         return {"ok": False, "detail": str(e), "issues": [str(e)]}
 

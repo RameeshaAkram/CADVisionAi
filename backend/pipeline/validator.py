@@ -1,6 +1,132 @@
-"""Validation of job outputs and confidence assignment."""
-
+import logging
 from typing import Any
+from shapely.geometry import Polygon, Point
+from shapely.validation import explain_validity
+
+logger = logging.getLogger(__name__)
+
+
+def _signed_polygon_area(points: list[dict]) -> float:
+    """Compute signed polygon area. Positive = CCW, Negative = CW."""
+    n = len(points)
+    if n < 3:
+        return 0.0
+    return 0.5 * sum(
+        points[k]["x"] * points[(k + 1) % n]["y"] - points[(k + 1) % n]["x"] * points[k]["y"]
+        for k in range(n)
+    )
+
+
+def _check_topology(drawing: dict) -> dict:
+    """Validate geometric topology of a 2D drawing.
+
+    Verifies:
+      1. Every polyline/circle forms a valid, closed Shapely Polygon.
+      2. Invalid (self-intersecting) polygons are auto-repaired via buffer(0) with logging.
+      3. Every hole profile is fully contained within the outer boundary (outer.contains / covers).
+      4. No two hole profiles overlap each other (hole_i.intersection(hole_j).area < 1e-4).
+      5. Winding direction convention: outer is CCW, holes are CW.
+    """
+    issues = []
+    repairs_applied = []
+    containment_ok = True
+    overlap_ok = True
+
+    if not drawing:
+        return {
+            "ok": True,
+            "detail": "No drawing data to check.",
+            "issues": [],
+            "repairs_applied": [],
+            "containment_ok": True,
+            "overlap_ok": True,
+        }
+
+    top = drawing.get("views", {}).get("top", {})
+    polylines = top.get("polylines", [])
+    circles = top.get("circles", [])
+
+    outer_poly = None
+    hole_polys = []
+
+    # Check polylines
+    for idx, poly in enumerate(polylines):
+        pts = poly.get("points", [])
+        role = poly.get("role", "outer")
+        is_closed = poly.get("is_closed", True)
+
+        if len(pts) < 3:
+            issues.append(f"Polyline {idx} ({role}) has fewer than 3 vertices.")
+            continue
+
+        if not is_closed:
+            issues.append(f"Polyline {idx} ({role}) is not closed.")
+
+        coords = [(p["x"], p["y"]) for p in pts]
+        shp = Polygon(coords)
+
+        # Validity & buffer(0) repair
+        if not shp.is_valid:
+            repaired = shp.buffer(0)
+            if repaired.is_valid and not repaired.is_empty:
+                msg = f"Repaired self-intersecting {role} polyline {idx} via buffer(0) ({explain_validity(shp)})"
+                logger.warning("Topology repair: %s", msg)
+                repairs_applied.append(msg)
+                shp = repaired
+            else:
+                issues.append(f"Invalid {role} polyline {idx} could not be repaired: {explain_validity(shp)}")
+
+        # Winding direction check
+        sa = _signed_polygon_area(pts)
+        if role == "outer":
+            outer_poly = shp
+            if sa < 0:
+                issues.append(f"Outer contour polyline has CW winding (signed area={sa:.1f}), expected CCW")
+        else:
+            hole_polys.append((f"Polyline Hole {idx}", shp))
+            if sa > 0:
+                issues.append(f"Hole polyline {idx} has CCW winding (signed area={sa:.1f}), expected CW")
+
+    # Check circles
+    for idx, circ in enumerate(circles):
+        cx = circ.get("cx", 0.0)
+        cy = circ.get("cy", 0.0)
+        r = circ.get("r", 0.0)
+        if r <= 0:
+            issues.append(f"Circle hole {idx} has non-positive radius: {r}")
+            continue
+        c_poly = Point(cx, cy).buffer(r, resolution=32)
+        hole_polys.append((f"Circle Hole {idx}", c_poly))
+
+    # Full containment check (tolerance 1e-4 for floating point precision on boundary)
+    if outer_poly is not None and hole_polys:
+        buffered_outer = outer_poly.buffer(1e-4)
+        for h_name, h_poly in hole_polys:
+            if not buffered_outer.contains(h_poly):
+                containment_ok = False
+                issues.append(f"{h_name} is partially or fully outside the outer contour boundary")
+
+    # Non-overlap check between hole pairs
+    n_holes = len(hole_polys)
+    for i in range(n_holes):
+        for j in range(i + 1, n_holes):
+            h1_name, h1_poly = hole_polys[i]
+            h2_name, h2_poly = hole_polys[j]
+            intersection = h1_poly.intersection(h2_poly)
+            if intersection.area > 1e-4:
+                overlap_ok = False
+                issues.append(f"{h1_name} and {h2_name} overlap (intersection area {intersection.area:.2f})")
+
+    ok = (len(issues) == 0)
+    detail = "; ".join(issues) if issues else "Topology is valid and verified."
+    return {
+        "ok": ok,
+        "detail": detail,
+        "issues": issues,
+        "repairs_applied": repairs_applied,
+        "containment_ok": containment_ok,
+        "overlap_ok": overlap_ok,
+    }
 
 def validate(job_payload: dict) -> dict:
     """
@@ -116,6 +242,30 @@ def validate(job_payload: dict) -> dict:
                 drawing_ok = False
                 
     checks.append({"id": "drawing", "ok": drawing_ok, "detail": "Drawing JSON is valid."})
+
+    # Topology validation check (valid polygons, full containment, no hole overlap, winding)
+    topo_res = _check_topology(drawing)
+    checks.append({
+        "id": "topology",
+        "ok": topo_res["ok"],
+        "detail": topo_res["detail"]
+    })
+    if not topo_res["ok"]:
+        for iss in topo_res["issues"]:
+            warnings.append({
+                "severity": "amber",
+                "code": "topology_issue",
+                "message": iss,
+                "action": "Check part contour boundaries and hole positions."
+            })
+    if topo_res.get("repairs_applied"):
+        for rep in topo_res["repairs_applied"]:
+            warnings.append({
+                "severity": "amber",
+                "code": "topology_repair",
+                "message": rep,
+                "action": "Verify repaired contour in 2D drawing."
+            })
     
     # 7 & 8. DXF and Mesh output checks
     dxf_ok = False
