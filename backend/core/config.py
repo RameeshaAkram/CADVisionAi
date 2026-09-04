@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     # Segment 9: CAD & Exporters
     PRIMITIVE_FIT_TOL: float = 0.1
     MAX_REFINED_FACES: int = 20000
+    CIRCULARITY_THRESHOLD: float = 0.85  # min circularity to classify a contour as a circle
 
     # Segment 15: Background processing
     RECON_TIMEOUT_SEC: int = 120
