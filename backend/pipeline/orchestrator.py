@@ -117,25 +117,6 @@ def run_job(job_id: str) -> Job:
             
             _mark_stage(0, StageStatus.COMPLETED)
             
-            # Check gate
-            if len(job.normalized_images) < 2:
-                # Needs more views
-                _mark_stage(0, StageStatus.COMPLETED, "Needs more views.")
-                for i in range(1, len(STAGES)):
-                    _mark_stage(i, StageStatus.SKIPPED, "Skipped due to insufficient views.")
-                
-                warnings = job.warnings + ["Need more viewpoints before reconstruction. Add photos from other angles, then process again."]
-                
-                job = job_manager.update_job(
-                    job_id,
-                    status=JobStatus.NEEDS_MORE_VIEWS,
-                    current_stage=None,
-                    progress=1.0,
-                    stages=job.stages,
-                    warnings=warnings
-                )
-                return job
-                
             # Run remaining stages sequentially
             for i, stage_name in enumerate(STAGES[1:], start=1):
                 _update_progress(i)
@@ -149,12 +130,12 @@ def run_job(job_id: str) -> Job:
                 if stage_name == "view_analysis":
                     out = view_analyzer.analyze(job.normalized_images)
                     res[stage_name] = out
-                    if out.get("usable_count", 0) < 3:
+                    if out.get("usable_count", 0) < 1:
                         _mark_stage(i, StageStatus.COMPLETED, "Needs more views.")
                         for j in range(i + 1, len(STAGES)):
                             _mark_stage(j, StageStatus.SKIPPED, "Skipped due to insufficient views.")
                         warnings = job.warnings + out.get("warnings", []) + [
-                            "Need at least 3 clear viewpoints for a stable flat-part profile."
+                            "No usable image passed the quality checks. Add a clear, well-lit flat-part image."
                         ]
                         return job_manager.update_job(
                             job_id,
@@ -165,6 +146,9 @@ def run_job(job_id: str) -> Job:
                             result=res,
                             warnings=list(dict.fromkeys(warnings))
                         )
+                    elif len(job.normalized_images) == 1:
+                        out["warnings"] = list(out.get("warnings", []))
+                        out["warnings"].append("Single-image mode: hidden surfaces and perspective cannot be verified.")
                     if "warnings" in out and out["warnings"]:
                         new_warnings = job.warnings.copy()
                         for w in out["warnings"]:

@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     VIEW_DIVERSITY_MIN: float = 0.25
     EXPOSURE_DARK: int = 40
     EXPOSURE_BRIGHT: int = 220
+    MIN_BRIGHT_IMAGE_DARK_RATIO: float = 0.005
+    MIN_BRIGHT_IMAGE_COMPONENT_AREA: float = 0.001
     HOUGH_CIRCLE_DP: float = 1.2
     FEATURE_MAX: int = 200
 

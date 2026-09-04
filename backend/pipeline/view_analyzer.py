@@ -35,11 +35,25 @@ def analyze(images: list[NormalizedImage]) -> dict:
         
         # Exposure check
         mean_lum = np.mean(gray)
+        dark_ratio = float(np.mean(gray <= settings.EXPOSURE_DARK))
+        dark_mask = np.uint8(gray <= settings.EXPOSURE_DARK)
+        component_count, _, component_stats, _ = cv2.connectedComponentsWithStats(
+            dark_mask, connectivity=8
+        )
+        component_areas = component_stats[1:, cv2.CC_STAT_AREA]
+        largest_component_ratio = (
+            float(component_areas.max()) / gray.size
+            if component_areas.size
+            else 0.0
+        )
         if mean_lum < settings.EXPOSURE_DARK:
             rejected.append({"index": i, "reason": "too_dark"})
             exposure_flags.append("dark")
             continue
-        elif mean_lum > settings.EXPOSURE_BRIGHT:
+        elif mean_lum > settings.EXPOSURE_BRIGHT and (
+            dark_ratio < settings.MIN_BRIGHT_IMAGE_DARK_RATIO
+            or largest_component_ratio < settings.MIN_BRIGHT_IMAGE_COMPONENT_AREA
+        ):
             rejected.append({"index": i, "reason": "too_bright"})
             exposure_flags.append("bright")
             continue
@@ -122,6 +136,11 @@ def analyze(images: list[NormalizedImage]) -> dict:
         "exposure_flags": exposure_flags,
         "overlap_score": overlap_score,
         "usable_count": usable_count,
+        "foreground": {
+            "dark_ratio": dark_ratio if images else 0.0,
+            "largest_component_ratio": largest_component_ratio if images else 0.0,
+            "component_count": max(component_count - 1, 0) if images else 0,
+        },
         "rejected": rejected,
         "coverage": {
             "score": float(coverage_score),
