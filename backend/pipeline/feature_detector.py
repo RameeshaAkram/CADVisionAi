@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import logging
 from backend.models.job_models import NormalizedImage
+from backend.pipeline.angle_snapper import snap_contour
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,13 @@ def detect(images: list[NormalizedImage], components: list = None) -> dict:
     border = np.concatenate([gray[0, :], gray[h - 1, :], gray[:, 0], gray[:, w - 1]])
     bg_is_light = float(np.median(border)) > 127
 
+    # Local illumination normalization (flat-field correction) to handle lighting gradients
+    ksize = int(min(h, w) * 0.15) | 1
+    bg_estimate = cv2.GaussianBlur(gray, (ksize, ksize), 0)
+    norm_img = np.clip((gray.astype(np.float32) / np.maximum(bg_estimate.astype(np.float32), 1.0)) * 255.0, 0, 255).astype(np.uint8)
+
     # Threshold: foreground features become 255, canvas background becomes 0
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    blurred = cv2.GaussianBlur(norm_img, (5, 5), 0)
     if bg_is_light:
         _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     else:
@@ -110,8 +116,10 @@ def detect(images: list[NormalizedImage], components: list = None) -> dict:
             "is_closed": True,
         }
 
-    # Add the outer contour
-    result_contours.append(process_contour(outer_contour, "outer"))
+    # Add the outer contour (with orthogonal angle snapping & collinear segment merge)
+    outer_result = process_contour(outer_contour, "outer")
+    outer_result["points"] = snap_contour(outer_result["points"])
+    result_contours.append(outer_result)
 
     # Add children (holes)
     for h_cnt in holes:

@@ -367,18 +367,30 @@ def gen_rounded_rect():
     ox, oy = _origin()
     w, h, corner_r = 120, 60, 10
     pts = []
-    for angle in range(0, 90, 5):
-        rad = math.radians(angle)
-        pts.append((w / 2 - corner_r + corner_r * math.cos(rad), -h / 2 + corner_r - corner_r * math.sin(rad)))
-    for angle in range(0, 90, 5):
-        rad = math.radians(angle)
-        pts.append((w / 2 - corner_r + corner_r * math.sin(rad), h / 2 - corner_r + corner_r * math.cos(rad)))
-    for angle in range(0, 90, 5):
-        rad = math.radians(angle)
-        pts.append((-w / 2 + corner_r - corner_r * math.cos(rad), h / 2 - corner_r + corner_r * math.sin(rad)))
-    for angle in range(0, 90, 5):
-        rad = math.radians(angle)
-        pts.append((-w / 2 + corner_r - corner_r * math.sin(rad), -h / 2 + corner_r - corner_r * math.cos(rad)))
+    # Continuous, non-self-intersecting rounded rectangle
+    # 1. Top-right arc (-90° to 0°)
+    cx, cy = w / 2 - corner_r, -h / 2 + corner_r
+    for deg in range(-90, 1, 5):
+        rad = math.radians(deg)
+        pts.append((cx + corner_r * math.cos(rad), cy + corner_r * math.sin(rad)))
+
+    # 2. Bottom-right arc (0° to 90°)
+    cx, cy = w / 2 - corner_r, h / 2 - corner_r
+    for deg in range(0, 91, 5):
+        rad = math.radians(deg)
+        pts.append((cx + corner_r * math.cos(rad), cy + corner_r * math.sin(rad)))
+
+    # 3. Bottom-left arc (90° to 180°)
+    cx, cy = -w / 2 + corner_r, h / 2 - corner_r
+    for deg in range(90, 181, 5):
+        rad = math.radians(deg)
+        pts.append((cx + corner_r * math.cos(rad), cy + corner_r * math.sin(rad)))
+
+    # 4. Top-left arc (180° to 270°)
+    cx, cy = -w / 2 + corner_r, -h / 2 + corner_r
+    for deg in range(180, 271, 5):
+        rad = math.radians(deg)
+        pts.append((cx + corner_r * math.cos(rad), cy + corner_r * math.sin(rad)))
     _draw_polygon(img, pts, ox, oy)
     holes_mm = [(-30, 0, 4), (0, 0, 4), (30, 0, 4)]
     holes = []
