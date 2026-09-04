@@ -52,6 +52,7 @@ def _job_to_public(job) -> JobPublic:
             for s in job.stages
         ],
         units=job.units.value,
+        thickness=job.thickness,
         known_dimensions=[
             KnownDimensionSchema(label=d.label, value=d.value)
             for d in job.known_dimensions
@@ -151,6 +152,7 @@ async def create_job(
     mode: str = Form(...),
     units: str = Form(...),
     known_dimensions: str = Form(...),
+    thickness: float = Form(1.0, gt=0),
     files: list[UploadFile] = File(...),
 ):
     """Create a new job by uploading photos or a video."""
@@ -183,6 +185,7 @@ async def create_job(
         mode=job_mode,
         units=UnitType(units),
         known_dimensions=dims,
+        thickness=thickness,
         files_meta=metas,
         warnings=warnings,
         job_id=job_id,

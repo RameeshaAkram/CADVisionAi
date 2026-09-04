@@ -6,6 +6,7 @@ export default function MeasurementsList({ status }: { status: JobStatusResponse
   if (!status) return null;
 
   const measurements = status.measurements || [];
+  const defaultUnit = status.scale?.units || 'mm';
   
   if (measurements.length === 0) {
     return (
@@ -22,7 +23,7 @@ export default function MeasurementsList({ status }: { status: JobStatusResponse
 
   const renderRow = (m: any) => {
     const theme = getConfidenceTheme(m.level as ConfidenceLevel);
-    const valueText = formatByConfidence(m.level as ConfidenceLevel, m.value, m.units, m.tolerance, m.min, m.max);
+    const valueText = formatByConfidence(m.level as ConfidenceLevel, m.value, m.units || defaultUnit, m.tolerance, m.min, m.max);
     
     return (
       <div key={m.id} className="flex items-baseline justify-between py-1.5 border-b border-[var(--g-800)] last:border-0 group">

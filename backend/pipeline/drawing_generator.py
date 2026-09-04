@@ -1,11 +1,12 @@
 """Segment 9 — Drawing Generator."""
 
-def generate(features: dict, measurements: list, scale_factor: float) -> dict:
+def generate(features: dict, measurements: list, scale_factor: float, scale_y: float | None = None) -> dict:
     """Convert extracted pixel contours to scaled 2D drawing data."""
     
     views = {"top": {"polylines": [], "dimensions": measurements}}
     
     contours = features.get("contours", [])
+    scale_y = scale_y or scale_factor
     
     for contour in contours:
         points = contour.get("points", [])
@@ -16,7 +17,7 @@ def generate(features: dict, measurements: list, scale_factor: float) -> dict:
         for p in points:
             scaled_points.append({
                 "x": p["x"] * scale_factor,
-                "y": p["y"] * scale_factor
+                "y": p["y"] * scale_y
             })
             
         views["top"]["polylines"].append({
@@ -29,6 +30,6 @@ def generate(features: dict, measurements: list, scale_factor: float) -> dict:
         "views": views,
         "title_block": {
             "title": "CADVision AI Export",
-            "note": "AI-assisted reconstruction — verify all dimensions before cutting."
+            "note": "AI-assisted reconstruction — not a metrology record. Verify all dimensions before cutting."
         }
     }

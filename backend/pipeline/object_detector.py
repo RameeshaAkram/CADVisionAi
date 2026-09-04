@@ -27,6 +27,7 @@ def detect(images: list[NormalizedImage]) -> dict:
             continue
             
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        h, w = gray.shape
         
         mask = None
         try:
@@ -41,7 +42,6 @@ def detect(images: list[NormalizedImage]) -> dict:
         except Exception as e:
             # Fallback to OpenCV
             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-            h, w = gray.shape
             edge_pixels = np.concatenate([gray[0, :], gray[h-1, :], gray[:, 0], gray[:, w-1]])
             bg_mean = np.mean(edge_pixels)
             
@@ -111,6 +111,7 @@ def detect(images: list[NormalizedImage]) -> dict:
                 "mask_path": str(mask_path)
             }
         ],
+        "primary_image_index": best_img_idx,
         "object_found": True,
         "warnings": warnings
     }

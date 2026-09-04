@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getJobExports } from '../../api/exports';
 import { Button } from '../ui/Button';
@@ -16,7 +16,6 @@ export default function ExportPopover({ jobId }: ExportPopoverProps) {
     enabled: isOpen
   });
 
-  const allReady = exportsData?.files.some(f => f.ready);
 
   return (
     <div className="relative w-full">

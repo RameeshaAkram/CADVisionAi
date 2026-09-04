@@ -12,18 +12,25 @@ def detect(images: list[NormalizedImage], components: list = None) -> dict:
     if not images:
         return {"contours": [], "warnings": ["No images provided."]}
         
-    # We only process the first image for CADVision AI (flat parts)
-    img_meta = images[0]
+    component = next((c for c in (components or []) if c.get("label") == "main_object"), None)
+    primary_index = component.get("image_index", 0) if component else 0
+    if primary_index < 0 or primary_index >= len(images):
+        primary_index = 0
+    img_meta = images[primary_index]
     img = cv2.imread(img_meta.stored_path)
     if img is None:
         return {"contours": [], "warnings": ["Could not read image."]}
         
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    # Preprocessing to isolate the part from the background.
-    # We assume a relatively clean background or use Otsu's thresholding.
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # Prefer the detector's foreground mask so contour extraction is not
+    # affected by the raw image's background brightness.
+    mask_path = next((c.get("mask_path") for c in (components or []) if c.get("mask_path")), None)
+    if mask_path and cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE) is not None:
+        thresh = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    else:
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     
     # Find contours with hierarchy to detect holes inside the main outline
     contours, hierarchy = cv2.findContours(thresh, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
@@ -66,5 +73,6 @@ def detect(images: list[NormalizedImage], components: list = None) -> dict:
             
     return {
         "contours": result_contours,
+        "primary_image_index": primary_index,
         "warnings": []
     }

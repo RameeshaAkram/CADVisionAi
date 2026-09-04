@@ -30,18 +30,22 @@ def calibrate(features: dict, known_dimensions: list, units: str) -> dict:
     pixel_width = max_x - min_x
     pixel_height = max_y - min_y
     
-    # We use the first known dimension provided by the user.
-    kd = known_dimensions[0]
-    
-    # Simple heuristic: if label says "height", we map to height, else width
-    if "height" in kd["label"].lower() or "tall" in kd["label"].lower():
-        pixel_val = pixel_height
-        axis = "y"
+    def dimension_for(axis: str) -> dict | None:
+        keywords = ("height", "tall") if axis == "y" else ("width", "length")
+        return next((d for d in known_dimensions if any(k in d["label"].lower() for k in keywords)), None)
+
+    x_dimension = dimension_for("x")
+    y_dimension = dimension_for("y")
+    reference = x_dimension or y_dimension or known_dimensions[0]
+    if reference is y_dimension and not x_dimension:
+        scale_x = scale_y = reference["value"] / pixel_height
+    elif x_dimension:
+        scale_x = x_dimension["value"] / pixel_width
+        scale_y = y_dimension["value"] / pixel_height if y_dimension else scale_x
     else:
-        pixel_val = pixel_width
-        axis = "x"
-        
-    if pixel_val <= 0:
+        scale_x = scale_y = reference["value"] / pixel_width
+
+    if scale_x <= 0 or scale_y <= 0:
         return {
             "scale_factor": 1.0,
             "units": units,
@@ -49,15 +53,18 @@ def calibrate(features: dict, known_dimensions: list, units: str) -> dict:
             "warnings": ["Invalid pixel dimension for calibration."]
         }
         
-    scale_factor = kd["value"] / pixel_val
-    
+    scale_factor = scale_x
+    x_label = "Overall Length" if x_dimension and "length" in x_dimension["label"].lower() else "Overall Width"
+    y_label = "Overall Height" if y_dimension else "Overall Width"
     measurements = [
-        {"id": "dim-1", "label": "Overall Width", "value": pixel_width * scale_factor, "level": "measured"},
-        {"id": "dim-2", "label": "Overall Height", "value": pixel_height * scale_factor, "level": "measured"}
+        {"id": "dim-1", "label": x_label, "value": pixel_width * scale_x, "level": "measured" if x_dimension else "estimated", "units": units, "source": "user_known" if x_dimension else "inferred", "glyph": "●" if x_dimension else "◐"},
+        {"id": "dim-2", "label": y_label, "value": pixel_height * scale_y, "level": "measured" if y_dimension else "estimated", "units": units, "source": "user_known" if y_dimension else "inferred", "glyph": "●" if y_dimension else "◐"}
     ]
     
     return {
         "scale_factor": scale_factor,
+        "scale_x": scale_x,
+        "scale_y": scale_y,
         "units": units,
         "measurements": measurements,
         "warnings": []

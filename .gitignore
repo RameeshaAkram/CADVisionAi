@@ -17,6 +17,11 @@ outputs/*
 
 # Testing
 .pytest_cache/
+.coverage
+htmlcov/
+*.tmp
+*.temp
+*.bak
 
 # IDE
 .vscode/

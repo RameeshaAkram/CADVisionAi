@@ -41,6 +41,7 @@ def create_job(
     units: UnitType,
     known_dimensions: list[KnownDimension],
     files_meta: list[FileMeta],
+    thickness: float = 1.0,
     warnings: list[str] | None = None,
     job_id: str | None = None,
 ) -> Job:
@@ -52,6 +53,7 @@ def create_job(
         status=JobStatus.UPLOADED,
         units=units,
         known_dimensions=known_dimensions,
+        thickness=thickness,
         files=files_meta,
         warnings=warnings or [],
     )

@@ -14,16 +14,16 @@
 @layer base {
   :root {
     /* ---------- Graphite (machine chrome) ---------- */
-    --g-950: #0D0C0B;   /* app + viewport background */
-    --g-900: #141312;   /* panel background */
-    --g-850: #1B1917;   /* raised surface, cards */
-    --g-800: #232120;   /* inputs, hovered surface */
-    --g-700: #33302D;   /* strong border, disabled fill */
-    --g-600: #4A4642;   /* border on raised surface */
-    --g-500: #6E6862;   /* muted icon, disabled text */
-    --g-400: #928B84;   /* tertiary text */
-    --g-300: #B5AEA6;   /* secondary text */
-    --g-100: #E4E0D9;   /* primary text */
+    --g-950: #F4F8FA;   /* app background */
+    --g-900: #FFFFFF;   /* panel background */
+    --g-850: #F8FBFC;   /* raised surface, cards */
+    --g-800: #EDF3F5;   /* inputs, hovered surface */
+    --g-700: #D4E0E5;   /* strong border, disabled fill */
+    --g-600: #B8C9D0;   /* border on raised surface */
+    --g-500: #71838C;   /* muted icon, disabled text */
+    --g-400: #53656E;   /* tertiary text */
+    --g-300: #394B54;   /* secondary text */
+    --g-100: #172830;   /* primary text */
 
     /* ---------- Paper (output surfaces + primary action) ---------- */
     --paper:      #EDEAE3;
@@ -32,11 +32,11 @@
     --paper-line: #DAD5CB;  /* grid lines on the drawing sheet */
 
     /* ---------- Cyan: interactive + measured / high confidence ---------- */
-    --cyan-400:  #5AD9E8;   /* text + lines on dark */
-    --cyan-500:  #2CC0D4;   /* default interactive */
-    --cyan-600:  #1B96A8;   /* pressed, or on light surfaces */
-    --cyan-700:  #14707E;   /* dimension lines on the paper sheet */
-    --cyan-ink:  #06201F;   /* text on a solid cyan fill */
+    --cyan-400:  #087F95;   /* text + lines */
+    --cyan-500:  #0BA6BE;   /* default interactive */
+    --cyan-600:  #087F95;   /* pressed */
+    --cyan-700:  #056476;   /* dimension lines on the paper sheet */
+    --cyan-ink:  #FFFFFF;   /* text on a solid cyan fill */
     --cyan-ghost:      rgba(44, 192, 212, 0.12);
     --cyan-ghost-hi:   rgba(44, 192, 212, 0.20);
 
@@ -115,8 +115,8 @@
     --ease-in:  cubic-bezier(0.4, 0, 1, 1);
 
     /* ---------- Viewport grid (the one decorative move, and it's functional) ---------- */
-    --grid-minor: rgba(255, 255, 255, 0.030);
-    --grid-major: rgba(255, 255, 255, 0.055);
+    --grid-minor: rgba(23, 40, 48, 0.045);
+    --grid-major: rgba(23, 40, 48, 0.085);
 
     /* ---------- Layout ---------- */
     --rail-w: 56px;
@@ -158,6 +158,11 @@
     font: var(--t-body);
     -webkit-font-smoothing: antialiased;
     font-feature-settings: 'cv05' 1;
+  }
+
+  body {
+    background-image: linear-gradient(rgba(23,40,48,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(23,40,48,0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
   }
 
   /* Numbers never jitter while a job is running */
@@ -208,21 +213,21 @@
   .btn-lg { height: 44px; padding: 0 20px; font-size: 15px; }
 
   /* Primary — paper. One per screen. It produces the artifact. */
-  .btn-primary            { background: var(--paper); color: var(--g-900); }
-  .btn-primary:hover:not(:disabled)      { background: var(--paper-hi); }
-  .btn-primary:active:not(:disabled)     { background: var(--paper-lo); }
+  .btn-primary            { background: var(--cyan-500); color: var(--cyan-ink); }
+  .btn-primary:hover:not(:disabled)      { background: var(--cyan-600); }
+  .btn-primary:active:not(:disabled)     { background: var(--cyan-700); }
   .btn-primary:disabled   { background: var(--g-700); color: var(--g-500); }
 
   /* Secondary — machined panel */
   .btn-secondary          { background: var(--g-800); color: var(--g-100); border-color: var(--g-700); }
-  .btn-secondary:hover:not(:disabled)    { background: #2C2926; border-color: var(--g-600); }
+  .btn-secondary:hover:not(:disabled)    { background: #E2F2F5; border-color: var(--g-600); }
   .btn-secondary:active:not(:disabled)   { background: var(--g-850); }
   .btn-secondary:disabled { background: var(--g-850); color: var(--g-500); border-color: var(--g-800); }
 
   /* Ghost — tertiary, dense toolbars */
   .btn-ghost              { background: transparent; color: var(--g-300); }
-  .btn-ghost:hover:not(:disabled)        { background: rgba(255,255,255,0.05); color: var(--g-100); }
-  .btn-ghost:active:not(:disabled)       { background: rgba(255,255,255,0.03); }
+  .btn-ghost:hover:not(:disabled)        { background: rgba(8,127,149,0.08); color: var(--g-100); }
+  .btn-ghost:active:not(:disabled)       { background: rgba(8,127,149,0.05); }
   .btn-ghost:disabled     { color: var(--g-500); background: transparent; }
 
   /* Accent — measurement tools only. Toggles on to solid cyan. */
@@ -294,4 +299,32 @@
 
   /* Dimension inputs are numeric — mono, tabular, right-aligned */
   .field-numeric { font: var(--t-data); font-variant-numeric: tabular-nums; text-align: right; }
+
+  .app-shell { min-height: 100vh; }
+  .topbar { height: 64px; border-bottom: 1px solid var(--g-700); background: rgba(255,255,255,0.94); backdrop-filter: blur(14px); }
+  .brand-mark { display: inline-flex; align-items: center; gap: 10px; font: 600 16px/1 var(--font-ui); letter-spacing: 0; }
+  .brand-mark::before { content: ''; width: 10px; height: 10px; background: var(--cyan-400); box-shadow: 0 0 0 4px var(--cyan-ghost); transform: rotate(45deg); }
+  .nav-link { display: inline-flex; align-items: center; height: 34px; padding: 0 10px; border-radius: var(--r-button); color: var(--g-300); transition: color var(--dur-state) var(--ease-out), background var(--dur-state) var(--ease-out); }
+  .nav-link:hover, .nav-link.active { color: var(--g-100); background: rgba(8,127,149,0.08); }
+  .eyebrow { color: var(--cyan-400); font: 500 11px/16px var(--font-data); letter-spacing: 0.12em; text-transform: uppercase; }
+  .page-intro { max-width: 680px; }
+  .step-card { border: 1px solid var(--g-700); background: rgba(255,255,255,0.88); border-radius: var(--r-card); box-shadow: 0 10px 28px rgba(23,40,48,0.08); }
+  .step-card-active { border-color: rgba(90,217,232,0.42); }
+  .step-number { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--g-600); border-radius: 50%; color: var(--g-300); font: var(--t-data); }
+  .step-card-active .step-number { background: var(--cyan-500); border-color: var(--cyan-500); color: var(--cyan-ink); }
+  .dropzone { min-height: 230px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--g-600); background: linear-gradient(135deg, rgba(11,166,190,0.09), transparent 55%), var(--g-900); border-radius: var(--r-card); transition: border-color var(--dur-state) var(--ease-out), background var(--dur-state) var(--ease-out); }
+  .dropzone:hover { border-color: var(--cyan-400); background-color: rgba(90,217,232,0.09); }
+  .dropzone-icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 14px; border: 1px solid rgba(90,217,232,0.3); border-radius: 50%; color: var(--cyan-400); background: var(--cyan-ghost); }
+  .section-rule { border-top: 1px solid var(--g-700); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .jobs-table { border: 1px solid var(--g-700); border-radius: var(--r-card); overflow: hidden; background: rgba(255,255,255,0.92); }
+  .jobs-table th { color: var(--g-500); font: 500 11px/16px var(--font-data); letter-spacing: 0.08em; text-transform: uppercase; }
+  .jobs-table td { border-top: 1px solid var(--g-700); }
+  .jobs-row { transition: background var(--dur-state) var(--ease-out); }
+  .jobs-row:hover { background: rgba(90,217,232,0.06); }
+  .status-pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 8px; border: 1px solid var(--g-600); border-radius: 999px; color: var(--g-300); font: 500 11px/1 var(--font-data); text-transform: capitalize; }
+  .status-pill.processing { color: var(--cyan-400); border-color: rgba(90,217,232,0.35); background: var(--cyan-ghost); }
+  .status-pill.completed { color: var(--g-200); }
+  .status-pill.failed { color: var(--red-400); border-color: rgba(244,112,94,0.35); background: var(--red-ghost); }
+  .status-pill.needs_more_views { color: var(--amber-400); border-color: rgba(240,180,41,0.35); background: var(--amber-ghost); }
 }

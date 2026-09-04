@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Field, Label } from '../components/ui/Field';
 import { Tabs, Tab } from '../components/ui/Tabs';
 import { unitOptions } from '../lib/units';
-import { X } from 'lucide-react';
+import { X, UploadCloud, Ruler, Layers3, ArrowRight } from 'lucide-react';
 
 interface UIFile {
   file: File;
@@ -21,7 +21,8 @@ export default function NewJob() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [dimensions, setDimensions] = useState<KnownDimension[]>([{ label: 'Overall height', value: 0 }]);
-  const [units, setUnits] = useState('ft');
+  const [units, setUnits] = useState('mm');
+  const [thickness, setThickness] = useState(0);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,7 +90,7 @@ export default function NewJob() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const validFiles = uiFiles.filter(f => f.status !== 'rejected').map(f => f.file);
-      const resp = await createJob(mode, units, dimensions, validFiles);
+      const resp = await createJob(mode, units, dimensions, thickness, validFiles);
       await startProcessing(resp.job_id);
       return resp.job_id;
     },
@@ -101,23 +102,29 @@ export default function NewJob() {
     }
   });
 
-  const canSubmit = uiFiles.filter(f => f.status !== 'rejected').length > 0 && dimensions.some(d => d.value > 0) && !!units;
+  const canSubmit = uiFiles.filter(f => f.status !== 'rejected').length > 0 && dimensions.some(d => d.value > 0) && thickness > 0 && !!units;
   const isSubmitting = createMutation.isPending;
 
   return (
-    <div className="max-w-[960px] mx-auto w-full p-4 md:p-8">
-      <h1 className="text-[28px] font-semibold leading-[34px] tracking-[-0.02em] mb-3">New reconstruction</h1>
-      <p className="text-[16px] leading-[25px] max-w-[70ch] mb-8 text-[var(--g-100)]">
-        Upload photos or a video of the object, then tell us one real measurement so we can scale the model.
-      </p>
+    <div className="max-w-[1180px] mx-auto w-full px-5 py-8 md:px-10 md:py-12">
+      <div className="page-intro mb-9">
+        <div className="eyebrow mb-3">CADVision AI / New job</div>
+        <h1 className="text-[34px] md:text-[42px] font-semibold leading-[1.05] tracking-[-0.03em] mb-4">Turn reference photos into a CAD starting point.</h1>
+        <p className="text-[16px] leading-[25px] text-[var(--g-300)]">Upload a clean view, add a measured reference, and receive a scaled DXF profile plus an extruded STL for review.</p>
+      </div>
 
-      <Tabs className="mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5 items-start">
+        <div className="flex flex-col gap-4">
+          <section className="step-card step-card-active p-5 md:p-6">
+            <div className="flex items-start gap-3 mb-5"><span className="step-number">01</span><div><h2 className="text-[18px] font-semibold">Add reference media</h2><p className="text-[13px] text-[var(--g-400)] mt-1">Use photos for flat parts. Multiple angles improve the outline.</p></div></div>
+
+      <Tabs className="mb-5">
         <Tab selected={mode === 'photo'} onClick={() => handleModeSwitch('photo')}>Photos</Tab>
         <Tab selected={mode === 'video'} onClick={() => handleModeSwitch('video')}>Video</Tab>
       </Tabs>
 
       <div 
-        className="border border-dashed border-[var(--g-600)] rounded-[6px] bg-[var(--g-900)] p-[44px_20px] text-center transition-all duration-140 ease-out hover:border-[var(--cyan-500)] hover:bg-[rgba(44,192,212,0.04)] cursor-pointer mb-4"
+        className="dropzone cursor-pointer"
         onClick={() => fileInputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
@@ -130,20 +137,19 @@ export default function NewJob() {
           onChange={(e) => handleFiles(e.target.files)} 
           accept={mode === 'photo' ? "image/jpeg,image/png,image/webp" : "video/mp4,video/quicktime,video/webm"}
         />
-        <b className="font-semibold text-[15px] leading-[22px] block text-[var(--g-100)]">
+        <div className="dropzone-icon"><UploadCloud className="w-5 h-5" /></div>
+        <b className="font-semibold text-[16px] leading-[22px] block text-[var(--g-100)]">
           {mode === 'photo' ? 'Drop photos here, or browse' : 'Drop a video here, or browse'}
         </b>
-        <span className="font-normal text-[12px] leading-[18px] font-data text-[var(--g-500)] mt-1 block">
+        <span className="font-normal text-[12px] leading-[18px] font-data text-[var(--g-400)] mt-2 block">
           {mode === 'photo' ? 'JPG, PNG, or WebP · as many views as you have' : 'MP4, MOV, or WebM · one clip from multiple angles'}
         </span>
       </div>
       
-      <p className="text-[12px] leading-[18px] text-[var(--g-300)] text-center mb-8">
-        Walk around the part and shoot the sides and top. One slow orbit video also works. Enter a height or width you can measure with a tape.
-      </p>
+      <p className="text-[12px] leading-[18px] text-[var(--g-400)] text-center mt-3">Best results: even lighting, plain background, camera parallel to the part.</p>
 
       {uiFiles.length > 0 && (
-        <div className="flex gap-2 mb-8 items-center flex-wrap">
+        <div className="flex gap-3 mt-5 items-center flex-wrap">
           <div className="flex gap-1.5 flex-wrap">
             {uiFiles.map((uf, i) => (
               <div key={i} className="w-[52px] h-[52px] bg-[var(--g-800)] border border-[var(--g-700)] rounded-[3px] relative overflow-hidden flex-shrink-0 group">
@@ -174,6 +180,7 @@ export default function NewJob() {
           </div>
         </div>
       )}
+          </section>
 
       {errorMsg && (
         <div className="bg-[var(--g-850)] border border-[rgba(224,73,47,0.35)] border-l-[2px] border-l-[var(--red-400)] rounded-[4px] p-3 flex gap-2.5 items-start mb-8">
@@ -184,7 +191,8 @@ export default function NewJob() {
         </div>
       )}
 
-      <h2 className="text-[20px] font-semibold leading-[26px] tracking-[-0.012em] mt-8 mb-4">Known dimension</h2>
+          <section className="step-card p-5 md:p-6">
+        <div className="flex items-start gap-3 mb-5"><span className="step-number">02</span><div><h2 className="text-[18px] font-semibold">Set scale and thickness</h2><p className="text-[13px] text-[var(--g-400)] mt-1">At least one measured dimension anchors the generated profile.</p></div></div>
       
       {dimensions.map((dim, idx) => (
         <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1.4fr_0.8fr_0.8fr_auto] gap-2.5 items-end max-w-[640px] mb-3">
@@ -243,7 +251,25 @@ export default function NewJob() {
         One measurement is required. Two or more improves accuracy.
       </div>
 
-      <div className="flex items-center gap-3.5 mt-7">
+      <div className="max-w-[220px] mb-7">
+        <Label>Material thickness ({unitOptions.find(u => u.value === units)?.label || units})</Label>
+        <Field
+          numeric
+          type="number"
+          step="any"
+          min="0"
+          value={thickness || ''}
+          onChange={e => setThickness(parseFloat(e.target.value) || 0)}
+        />
+        <div className="text-[11px] leading-[14px] text-[var(--g-500)] mt-1.5">
+          Used to create the 3D STL extrusion.
+        </div>
+      </div>
+          </section>
+
+          <section className="step-card p-5 md:p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+            <div><div className="eyebrow mb-1">03 / Generate</div><div className="text-[14px] text-[var(--g-300)]">Creates a reviewable DXF and STL from the visible profile.</div></div>
+      <div className="flex items-center gap-3">
         <Button 
           variant="primary" 
           onClick={() => createMutation.mutate()} 
@@ -252,13 +278,29 @@ export default function NewJob() {
           loadingText="Starting..."
           className="min-w-[140px]"
         >
-          Start processing
+          Generate CAD <ArrowRight className="w-4 h-4" />
         </Button>
         {!canSubmit && !isSubmitting && (
           <span className="text-[11px] leading-[14px] text-[var(--g-500)]">
-            Add at least one {mode === 'photo' ? 'photo' : 'video'} and one known dimension &gt; 0
+            Add an input file, dimension, and material thickness &gt; 0
           </span>
         )}
+      </div>
+          </section>
+        </div>
+
+        <aside className="step-card p-5 lg:sticky lg:top-6">
+          <div className="flex items-center gap-2 mb-5"><Layers3 className="w-4 h-4 text-[var(--cyan-400)]" /><h2 className="font-semibold">Output preview</h2></div>
+          <div className="border border-[var(--g-700)] bg-[var(--g-950)] p-4 mb-5">
+            <div className="flex items-center justify-between mb-3"><span className="text-[12px] text-[var(--g-400)]">Profile status</span><span className="status-pill"><span className="status-dot text-[var(--g-500)]" /> Waiting for input</span></div>
+            <div className="h-[112px] border border-dashed border-[var(--g-700)] flex items-center justify-center text-[var(--g-500)]"><Ruler className="w-5 h-5" /></div>
+          </div>
+          <div className="flex flex-col gap-3 text-[13px]">
+            <div className="flex justify-between"><span className="text-[var(--g-400)]">2D profile</span><span className="font-data text-[var(--g-300)]">DXF</span></div>
+            <div className="flex justify-between"><span className="text-[var(--g-400)]">Solid preview</span><span className="font-data text-[var(--g-300)]">STL</span></div>
+            <div className="section-rule pt-3 text-[12px] leading-[18px] text-[var(--amber-400)]">Generated geometry is an approximation. Verify dimensions before fabrication.</div>
+          </div>
+        </aside>
       </div>
     </div>
   );

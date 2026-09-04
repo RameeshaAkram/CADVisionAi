@@ -11,7 +11,6 @@ from backend.pipeline import (
     view_analyzer,
     object_detector,
     feature_detector,
-    feature_detector,
     scale_calibration,
     drawing_generator,
     validator,
@@ -23,7 +22,6 @@ STAGES: list[str] = [
     "prepare_images",
     "view_analysis",
     "object_detection",
-    "feature_detection",
     "feature_detection",
     "scale_calibration",
     "drawing_generation",
@@ -151,26 +149,22 @@ def run_job(job_id: str) -> Job:
                 if stage_name == "view_analysis":
                     out = view_analyzer.analyze(job.normalized_images)
                     res[stage_name] = out
-                    if not out.get("enough_views"):
+                    if out.get("usable_count", 0) < 3:
                         _mark_stage(i, StageStatus.COMPLETED, "Needs more views.")
                         for j in range(i + 1, len(STAGES)):
                             _mark_stage(j, StageStatus.SKIPPED, "Skipped due to insufficient views.")
-                        
-                        new_warnings = job.warnings.copy()
-                        for w in out.get("warnings", []):
-                            if w not in new_warnings:
-                                new_warnings.append(w)
-                                
-                        job = job_manager.update_job(
+                        warnings = job.warnings + out.get("warnings", []) + [
+                            "Need at least 3 clear viewpoints for a stable flat-part profile."
+                        ]
+                        return job_manager.update_job(
                             job_id,
                             status=JobStatus.NEEDS_MORE_VIEWS,
                             current_stage=None,
                             progress=1.0,
                             stages=job.stages,
                             result=res,
-                            warnings=new_warnings
+                            warnings=list(dict.fromkeys(warnings))
                         )
-                        return job
                     if "warnings" in out and out["warnings"]:
                         new_warnings = job.warnings.copy()
                         for w in out["warnings"]:
@@ -178,27 +172,14 @@ def run_job(job_id: str) -> Job:
                                 new_warnings.append(w)
                         job.warnings = new_warnings
                         
-                    # Early exit gate based on CV analysis
-                    if not out.get("enough_views", True):
-                        _mark_stage(i, StageStatus.COMPLETED, "Needs more views.")
-                        for j in range(i + 1, len(STAGES)):
-                            _mark_stage(j, StageStatus.SKIPPED, "Skipped due to insufficient views.")
-                        
-                        job = job_manager.update_job(
-                            job_id,
-                            status=JobStatus.NEEDS_MORE_VIEWS,
-                            current_stage=None,
-                            progress=1.0,
-                            stages=job.stages,
-                            result=res,
-                            warnings=job.warnings
-                        )
-                        return job
+                    # Continue with the best visible profile even when view
+                    # diversity is low; validation will retain the warning.
                 elif stage_name == "object_detection":
                     out = object_detector.detect(job.normalized_images)
                     res[stage_name] = out
                 elif stage_name == "feature_detection":
-                    out = feature_detector.detect(job.normalized_images)
+                    components = res.get("object_detection", {}).get("components", [])
+                    out = feature_detector.detect(job.normalized_images, components)
                     res[stage_name] = out
                 elif stage_name == "scale_calibration":
                     features = res.get("feature_detection", {})
@@ -208,7 +189,8 @@ def run_job(job_id: str) -> Job:
                     features = res.get("feature_detection", {})
                     measurements = res.get("scale_calibration", {}).get("measurements", [])
                     scale_factor = res.get("scale_calibration", {}).get("scale_factor", 1.0)
-                    out = drawing_generator.generate(features, measurements, scale_factor)
+                    scale_y = res.get("scale_calibration", {}).get("scale_y", scale_factor)
+                    out = drawing_generator.generate(features, measurements, scale_factor, scale_y)
                     res[stage_name] = out
 
 
@@ -217,6 +199,7 @@ def run_job(job_id: str) -> Job:
             
             # Export files
             from backend.exporters import dxf_exporter
+            from backend.exporters import stl_exporter
             from backend.core.config import settings
             from backend.models.job_models import OutputRecord
             from pathlib import Path
@@ -227,8 +210,11 @@ def run_job(job_id: str) -> Job:
             new_outputs = []
             if "drawing_generation" in res:
                 dxf_path = out_dir / "drawing.dxf"
-                dxf_exporter.write(res["drawing_generation"], dxf_path)
+                dxf_exporter.write(res["drawing_generation"], dxf_path, job.units.value)
                 new_outputs.append(OutputRecord(kind="dxf", path=str(dxf_path), filename="drawing.dxf"))
+                stl_path = out_dir / "model.stl"
+                stl_exporter.write(res["drawing_generation"], stl_path, job.thickness)
+                new_outputs.append(OutputRecord(kind="mesh", path=str(stl_path), filename="model.stl"))
                 
             job.outputs = new_outputs
             

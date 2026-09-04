@@ -1,7 +1,7 @@
 import { Fragment, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getJobStatus, startProcessing } from '../api/jobs';
+import { addPhotos, getJobStatus, startProcessing } from '../api/jobs';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
 
@@ -91,17 +91,8 @@ export default function Processing() {
               ) as File[];
               if (validFiles.length > 0) {
                 try {
-                  const formData = new FormData();
-                  validFiles.forEach(f => formData.append('files', f));
-                  const res = await fetch(`http://localhost:8000/api/jobs/${jobId}/files`, {
-                    method: 'POST',
-                    body: formData,
-                  });
-                  if (res.ok) {
-                    retryMutation.mutate();
-                  } else {
-                    alert('Failed to upload files.');
-                  }
+                  await addPhotos(jobId!, validFiles);
+                  retryMutation.mutate();
                 } catch (err) {
                   console.error(err);
                 }

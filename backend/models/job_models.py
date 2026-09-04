@@ -104,6 +104,7 @@ class Job(BaseModel):
     status: JobStatus = JobStatus.UPLOADED
     units: UnitType
     known_dimensions: list[KnownDimension]
+    thickness: float = Field(default=1.0, gt=0)
     files: list[FileMeta] = Field(default_factory=list)
     normalized_images: list[NormalizedImage] = Field(default_factory=list)
     normalize_warnings: list[str] = Field(default_factory=list)

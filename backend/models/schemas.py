@@ -68,6 +68,7 @@ class JobPublic(BaseModel):
     stages: list[StageRecordSchema] = Field(default_factory=list)
     units: str
     known_dimensions: list[KnownDimensionSchema]
+    thickness: float
     file_count: int
     normalized_count: int = 0
     usable_count: int | None = None

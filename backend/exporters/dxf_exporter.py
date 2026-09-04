@@ -3,7 +3,7 @@
 from pathlib import Path
 import ezdxf
 
-def write(drawing_json: dict, path: str | Path) -> str:
+def write(drawing_json: dict, path: str | Path, units: str = "mm") -> str:
     """Writes the 2D drawing JSON to a DXF file."""
     path = Path(path)
     
@@ -11,8 +11,8 @@ def write(drawing_json: dict, path: str | Path) -> str:
     msp = doc.modelspace()
     
     # Unit mapping: 1 = inches, 2 = feet, 4 = mm, 5 = cm
-    # We default to mm
-    doc.header["$INSUNITS"] = 4
+    unit_codes = {"inches": 1, "feet": 2, "mm": 4, "cm": 5}
+    doc.header["$INSUNITS"] = unit_codes.get(units, 4)
     
     # Create layers
     doc.layers.new("CUT", dxfattribs={"color": 7}) # White/Black for outer contour

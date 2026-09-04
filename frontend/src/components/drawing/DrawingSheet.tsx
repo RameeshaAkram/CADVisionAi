@@ -11,7 +11,7 @@ interface DrawingSheetProps {
 
 export default function DrawingSheet({ jobId, createdAt }: DrawingSheetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [scale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -21,13 +21,6 @@ export default function DrawingSheet({ jobId, createdAt }: DrawingSheetProps) {
     queryFn: () => getJobDrawing(jobId),
     retry: false
   });
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomSensitivity = 0.001;
-    const delta = -e.deltaY * zoomSensitivity;
-    setScale(s => Math.min(Math.max(0.1, s + delta), 10));
-  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);

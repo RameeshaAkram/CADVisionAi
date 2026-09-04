@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getJobs } from '../api/jobs';
 import { formatDistanceToNow } from 'date-fns';
+import { ArrowUpRight, Box, Plus } from 'lucide-react';
 
 export const Jobs: React.FC = () => {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -18,16 +19,6 @@ export const Jobs: React.FC = () => {
     });
   }, []);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'processing': return 'bg-cyan-100 text-cyan-800 border border-cyan-200';
-      case 'completed': return 'bg-gray-100 text-gray-800 border border-gray-200'; // no green
-      case 'failed': return 'bg-red-100 text-red-800 border border-red-200'; // vermilion
-      case 'needs_more_views': return 'bg-amber-100 text-amber-800 border border-amber-200';
-      default: return 'bg-gray-100 text-gray-800 border border-gray-200';
-    }
-  };
-
   const handleRowClick = (job: any) => {
     if (job.status === 'processing') {
       navigate(`/jobs/${job.job_id}`);
@@ -37,62 +28,66 @@ export const Jobs: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 bg-white flex flex-col p-8 max-w-4xl mx-auto w-full">
-      <h1 className="text-2xl font-semibold mb-6 text-gray-900">Jobs</h1>
+    <div className="flex-1 max-w-[1180px] mx-auto w-full px-5 py-8 md:px-10 md:py-12">
+      <div className="flex items-end justify-between gap-4 mb-8">
+        <div><div className="eyebrow mb-3">CADVision AI / Library</div><h1 className="text-[34px] md:text-[40px] font-semibold leading-none tracking-[-0.03em]">Reconstruction jobs</h1><p className="text-[14px] text-[var(--g-400)] mt-3">Review generated profiles and return to unfinished captures.</p></div>
+        <button onClick={() => navigate('/')} className="btn btn-primary"><Plus className="w-4 h-4" /> New job</button>
+      </div>
       
       {loading ? (
-        <div className="text-gray-500">Loading jobs...</div>
+        <div className="text-[var(--g-400)] font-data text-[13px]">Loading jobs...</div>
       ) : jobs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-200 rounded-lg paper-scope">
-          <p className="text-gray-500 mb-4">Nothing reconstructed yet.</p>
+        <div className="step-card flex flex-col items-center justify-center py-20">
+          <Box className="w-8 h-8 text-[var(--g-500)] mb-4" />
+          <p className="text-[var(--g-300)] mb-4">No reconstruction jobs yet.</p>
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-2 bg-gray-900 text-white rounded font-medium hover:bg-gray-800"
+            className="btn btn-secondary"
           >
             New reconstruction
           </button>
         </div>
       ) : (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="jobs-table">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 py-3 text-sm font-medium text-gray-500 w-16">Preview</th>
-                <th className="px-4 py-3 text-sm font-medium text-gray-500">Job ID</th>
-                <th className="px-4 py-3 text-sm font-medium text-gray-500">Status</th>
-                <th className="px-4 py-3 text-sm font-medium text-gray-500">Files</th>
-                <th className="px-4 py-3 text-sm font-medium text-gray-500 text-right">Time</th>
+              <tr className="bg-[var(--g-850)]">
+                <th className="px-4 py-4 w-16">Preview</th>
+                <th className="px-4 py-4">Job ID</th>
+                <th className="px-4 py-4">Status</th>
+                <th className="px-4 py-4">Inputs</th>
+                <th className="px-4 py-4 text-right">Created</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody>
               {jobs.map((job) => (
                 <tr 
                   key={job.job_id} 
                   onClick={() => handleRowClick(job)}
-                  className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  className="jobs-row cursor-pointer"
                 >
                   <td className="px-4 py-3">
                     {job.thumbnail_url ? (
-                      <img src={`http://localhost:8000${job.thumbnail_url}`} className="w-10 h-10 object-cover rounded bg-gray-100" />
+                      <img src={job.thumbnail_url} className="w-11 h-11 object-cover rounded-[3px] border border-[var(--g-700)]" />
                     ) : (
-                      <div className="w-10 h-10 bg-gray-100 rounded"></div>
+                      <div className="w-11 h-11 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[3px] grid place-items-center"><Box className="w-4 h-4 text-[var(--g-500)]" /></div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm font-mono text-gray-600">
+                  <td className="px-4 py-3 text-[13px] font-data text-[var(--g-300)]">
                     {job.job_id.substring(0, 8)}...
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 text-xs rounded-full inline-flex items-center gap-1.5 ${getStatusColor(job.status)}`}>
-                      {job.status === 'processing' && <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>}
-                      {job.status === 'completed' && <span className="text-gray-500 text-[10px]">✔</span>}
+                    <span className={`status-pill ${job.status}`}>
+                      {(job.status === 'processing' || job.status === 'completed') && <span className={`status-dot ${job.status === 'processing' ? 'animate-pulse' : ''}`}></span>}
                       {job.status.replace(/_/g, ' ')}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {job.file_count}
+                  <td className="px-4 py-3 text-[13px] text-[var(--g-300)]">
+                    <span className="font-data">{job.file_count}</span> file{job.file_count === 1 ? '' : 's'} <span className="text-[var(--g-500)]">/ {job.units}</span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 font-mono text-right">
+                  <td className="px-4 py-3 text-[12px] text-[var(--g-400)] font-data text-right">
                     {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
+                    <ArrowUpRight className="inline w-3.5 h-3.5 ml-2 text-[var(--g-500)]" />
                   </td>
                 </tr>
               ))}

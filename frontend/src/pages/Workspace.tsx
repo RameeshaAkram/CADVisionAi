@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getJobStatus, startProcessing } from '../api/jobs';
+import { addPhotos, getJobStatus, startProcessing } from '../api/jobs';
 import { Tabs, Tab } from '../components/ui/Tabs';
 import { Button } from '../components/ui/Button';
 import { RotateCcw, BoxSelect, Maximize, Hash } from 'lucide-react';
@@ -100,7 +100,7 @@ export default function Workspace() {
               <div className="flex flex-wrap gap-2">
                 {status.files?.map((f: any, idx: number) => (
                   <div key={idx} className="w-[52px] h-[52px] bg-[var(--g-800)] border border-[var(--g-700)] rounded-[3px] flex items-center justify-center shrink-0 text-[10px] text-[var(--g-400)] overflow-hidden text-center relative group">
-                    {f.kind === 'image' ? <img src={`http://localhost:8000/api/jobs/${jobId}/files/${f.filename}`} className="w-full h-full object-cover opacity-60" alt="" /> : 'Video'}
+                    {f.kind === 'image' ? <img src={`/api/jobs/${jobId}/files/${f.filename}`} className="w-full h-full object-cover opacity-60" alt="" /> : 'Video'}
                   </div>
                 ))}
               </div>
@@ -118,17 +118,8 @@ export default function Workspace() {
                   ) as File[];
                   if (validFiles.length > 0) {
                     try {
-                      const formData = new FormData();
-                      validFiles.forEach(f => formData.append('files', f));
-                      const res = await fetch(`http://localhost:8000/api/jobs/${jobId}/files`, {
-                        method: 'POST',
-                        body: formData,
-                      });
-                      if (res.ok) {
-                        retryMutation.mutate();
-                      } else {
-                        alert('Failed to upload files.');
-                      }
+                      await addPhotos(jobId!, validFiles);
+                      retryMutation.mutate();
                     } catch (err) {
                       console.error(err);
                     }
@@ -168,7 +159,7 @@ export default function Workspace() {
 
             {!showAddViews && confidence?.warnings && confidence.warnings.length > 0 && (
               <>
-                {confidence.warnings.slice(0, 2).sort((a: any, b: any) => a.severity === 'vermilion' ? -1 : 1).map((w: any, idx: number) => (
+                {confidence.warnings.slice(0, 2).sort((a: any) => a.severity === 'vermilion' ? -1 : 1).map((w: any, idx: number) => (
                   <div key={idx} className={`bg-[var(--g-850)] border border-[rgba(255,255,255,0.1)] border-l-[2px] ${getSeverityBorder(w.severity)} rounded-[4px] p-[10px_12px] flex gap-2.5 items-start shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]`}>
                     <div className={`${getSeverityColor(w.severity)} font-semibold text-[13px] leading-[17px]`}>⚠</div>
                     <div className="text-[12px] leading-[17px]">

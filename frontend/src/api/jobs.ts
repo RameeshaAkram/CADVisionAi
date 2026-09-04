@@ -37,12 +37,14 @@ export const createJob = async (
   mode: 'photo' | 'video',
   units: string,
   dimensions: KnownDimension[],
+  thickness: number,
   files: File[]
 ): Promise<{ job_id: string }> => {
   const formData = new FormData();
   formData.append('mode', mode);
   formData.append('units', units);
   formData.append('known_dimensions', JSON.stringify(dimensions));
+  formData.append('thickness', String(thickness));
   files.forEach(f => formData.append('files', f));
 
   return apiClient('/jobs', {
@@ -56,7 +58,7 @@ export const startProcessing = async (jobId: string): Promise<{ status: string }
 };
 
 export const getJobStatus = async (jobId: string): Promise<any> => {
-  return apiClient(`/jobs/${jobId}`);
+  return apiClient(`/jobs/${jobId}/status`);
 };
 
 export const getJobs = async (limit: number = 50, status?: string): Promise<{ jobs: any[] }> => {
