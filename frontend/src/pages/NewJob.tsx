@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { createJob, startProcessing, type KnownDimension } from '../api/jobs';
-import { Button } from '../components/ui/Button';
 import { unitOptions } from '../lib/units';
 import {
   UploadCloud,
@@ -13,7 +12,14 @@ import {
   FileCode,
   Box,
   Sparkles,
-  Check
+  Check,
+  Ruler,
+  Trash2,
+  RefreshCw,
+  Cpu,
+  Layers,
+  HelpCircle,
+  Sliders
 } from 'lucide-react';
 
 interface UIFile {
@@ -24,16 +30,61 @@ interface UIFile {
   height?: number;
 }
 
+interface BenchmarkSample {
+  name: string;
+  label: string;
+  sublabel: string;
+  url: string;
+  dimLabel: string;
+  dimValue: number;
+  units: string;
+  thickness: number;
+}
+
+const BENCHMARK_SAMPLES: BenchmarkSample[] = [
+  {
+    name: 'test_mixed_hole_sizes.png',
+    label: '4-Hole Plate',
+    sublabel: '140 × 90 mm (4 variable holes)',
+    url: '/samples/test_mixed_hole_sizes.png',
+    dimLabel: 'Overall width',
+    dimValue: 140,
+    units: 'mm',
+    thickness: 3.0,
+  },
+  {
+    name: 'bracket.png',
+    label: 'Angle Bracket',
+    sublabel: '100 × 50 mm (Mounting bracket)',
+    url: '/samples/bracket.png',
+    dimLabel: 'Overall width',
+    dimValue: 100,
+    units: 'mm',
+    thickness: 3.0,
+  },
+  {
+    name: 'mounting_plate.png',
+    label: 'Mounting Plate',
+    sublabel: '120 × 80 mm (Dual-mount)',
+    url: '/samples/mounting_plate.png',
+    dimLabel: 'Overall width',
+    dimValue: 120,
+    units: 'mm',
+    thickness: 4.0,
+  },
+];
+
 export default function NewJob() {
   const navigate = useNavigate();
   const [mode] = useState<'photo'>('photo');
   const [uiFiles, setUiFiles] = useState<UIFile[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isLoadingSample, setIsLoadingSample] = useState(false);
 
   // Single clear reference dimension
   const [dimLabel, setDimLabel] = useState('Overall width');
-  const [dimValue, setDimValue] = useState<number | ''>(100);
+  const [dimValue, setDimValue] = useState<number | ''>(140);
   const [units, setUnits] = useState('mm');
   const [thickness, setThickness] = useState<number | ''>(3.0);
 
@@ -66,7 +117,6 @@ export default function NewJob() {
         status: f.size > 20 * 1024 * 1024 ? 'warning' : 'usable',
       };
 
-      // Load natural dimensions
       const img = new Image();
       img.onload = () => {
         setUiFiles(prev => prev.map(item => item.preview === previewUrl ? { ...item, width: img.naturalWidth, height: img.naturalHeight } : item));
@@ -81,15 +131,47 @@ export default function NewJob() {
     }
 
     if (toAdd.length > 0) {
-      // Primary workflow: one primary image for 2D CAD reconstruction
       setUiFiles(toAdd);
+    }
+  };
+
+  const handleLoadSample = async (sample: BenchmarkSample) => {
+    try {
+      setIsLoadingSample(true);
+      setErrorMsg(null);
+      const resp = await fetch(sample.url);
+      if (!resp.ok) throw new Error(`Could not load sample from ${sample.url}`);
+      const blob = await resp.blob();
+      const file = new File([blob], sample.name, { type: 'image/png' });
+      const previewUrl = URL.createObjectURL(file);
+
+      const img = new Image();
+      img.onload = () => {
+        setUiFiles([{
+          file,
+          preview: previewUrl,
+          status: 'usable',
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        }]);
+      };
+      img.src = previewUrl;
+
+      setDimLabel(sample.dimLabel);
+      setDimValue(sample.dimValue);
+      setUnits(sample.units);
+      setThickness(sample.thickness);
+    } catch (err: any) {
+      setErrorMsg(`Failed to load benchmark sample: ${err.message}`);
+    } finally {
+      setIsLoadingSample(false);
     }
   };
 
   const createMutation = useMutation({
     mutationFn: async () => {
       const validFiles = uiFiles.filter(f => f.status !== 'rejected').map(f => f.file);
-      if (validFiles.length === 0) throw new Error('Please select a part image.');
+      if (validFiles.length === 0) throw new Error('Please upload or select a part image.');
       const numValue = typeof dimValue === 'number' ? dimValue : parseFloat(String(dimValue));
       if (!numValue || numValue <= 0) throw new Error('Please enter a valid known dimension (> 0).');
       const numThickness = typeof thickness === 'number' ? thickness : (parseFloat(String(thickness)) || 1.0);
@@ -113,89 +195,342 @@ export default function NewJob() {
   const hasValidThickness = typeof thickness === 'number' ? thickness > 0 : (parseFloat(String(thickness)) > 0);
   const canSubmit = hasValidFile && hasValidDimension && hasValidThickness && !createMutation.isPending;
 
-  return (
-    <div className="flex-1 w-full max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 py-8 md:py-12">
+  // Live scale calculation estimate
+  const numericDim = typeof dimValue === 'number' ? dimValue : parseFloat(String(dimValue)) || 0;
+  const targetPixelLength = selectedFile?.width && selectedFile?.height
+    ? (dimLabel.toLowerCase().includes('height') ? selectedFile.height : selectedFile.width)
+    : null;
+  const estimatedScale = targetPixelLength && numericDim > 0
+    ? (numericDim / targetPixelLength)
+    : null;
 
-      {/* Hero Header */}
-      <div className="mb-8 md:mb-10">
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-[4px] bg-[var(--cyan-ghost)] border border-[rgba(44,192,212,0.25)] text-[11px] font-data text-[var(--cyan-400)] uppercase tracking-wider mb-3">
-          <Sparkles className="w-3 h-3" />
-          <span>AI-Powered Reverse Engineering</span>
+  return (
+    <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '32px 24px', width: '100%' }}>
+
+      {/* Hero Header Section */}
+      <div style={{ marginBottom: '32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '5px 14px',
+            borderRadius: '999px',
+            backgroundColor: 'rgba(11,166,190,0.1)',
+            border: '1px solid rgba(11,166,190,0.3)',
+            color: '#087F95',
+            fontSize: '11px',
+            fontFamily: 'var(--font-data)',
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase'
+          }}>
+            <Sparkles size={13} style={{ color: '#0BA6BE' }} />
+            <span>AI-POWERED REVERSE ENGINEERING</span>
+          </div>
+
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '4px',
+            backgroundColor: '#F8FBFC',
+            border: '1px solid #D4E0E5',
+            fontSize: '11px',
+            fontFamily: 'var(--font-data)',
+            color: '#71838C'
+          }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0BA6BE' }} />
+            <span>ENGINEERING SPEC R2024</span>
+          </div>
         </div>
-        <h1 className="text-[32px] sm:text-[40px] md:text-[44px] font-bold tracking-tight text-[var(--g-100)] leading-[1.08] mb-3">
-          Turn a part image into <span className="text-[var(--cyan-400)]">CAD-ready geometry</span>.
+
+        <h1 style={{
+          fontSize: '36px',
+          fontWeight: 700,
+          letterSpacing: '-0.025em',
+          lineHeight: 1.15,
+          color: '#172830',
+          margin: '0 0 10px 0'
+        }}>
+          Turn a part image into <span style={{ color: '#0BA6BE' }}>CAD-ready geometry</span>.
         </h1>
-        <p className="text-[15px] sm:text-[16px] text-[var(--g-300)] max-w-[720px] leading-relaxed">
-          Upload a mechanical part image, provide one known dimension, and generate a scaled CAD drawing with exact closed contours and detected internal holes.
+        <p style={{
+          fontSize: '15px',
+          color: '#53656E',
+          maxWidth: '780px',
+          lineHeight: 1.6,
+          margin: 0
+        }}>
+          Upload an orthographic mechanical part image, specify one calibrated reference dimension, and autonomously generate scaled 2D AutoCAD DXF vector drawings with detected hole primitives and 3D STL solids.
         </p>
       </div>
 
-      {/* Workflow Explainer Banner */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+      {/* Connected Linear Stepper / Pipeline Progress */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gap: '12px',
+        marginBottom: '28px'
+      }}>
         {[
-          { step: '01', title: 'Upload Image', desc: 'Flat mechanical part photo or CAD drawing' },
-          { step: '02', title: 'Known Dimension', desc: 'Single reference measurement for scaling' },
-          { step: '03', title: 'Generate CAD', desc: 'Autonomous contour and hole extraction' },
-          { step: '04', title: 'Export Outputs', desc: 'Standard 2D DXF and 3D STL files' },
-        ].map((item, idx) => (
-          <div
-            key={idx}
-            className="p-3.5 rounded-[6px] bg-[var(--surface)] border border-[var(--g-700)] flex flex-col justify-between shadow-sm relative overflow-hidden"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-data font-bold text-[var(--cyan-400)]">{item.step}</span>
-              <div className="w-1.5 h-1.5 rounded-full bg-[var(--g-600)]" />
+          {
+            step: '01',
+            title: 'Upload Part',
+            desc: hasValidFile ? `${selectedFile.file.name.slice(0, 18)}...` : 'Orthographic photo or drawing',
+            active: true,
+            done: hasValidFile,
+            icon: UploadCloud,
+          },
+          {
+            step: '02',
+            title: 'Reference Scale',
+            desc: hasValidDimension ? `${dimValue} ${units} (${dimLabel})` : 'Calibrate pixel-to-millimeter ratio',
+            active: hasValidFile,
+            done: hasValidFile && hasValidDimension,
+            icon: Ruler,
+          },
+          {
+            step: '03',
+            title: 'CAD Generation',
+            desc: 'Contour closure & hole circle fitting',
+            active: hasValidFile && hasValidDimension,
+            done: false,
+            icon: Cpu,
+          },
+          {
+            step: '04',
+            title: 'CAM & 3D Deliverables',
+            desc: 'AutoCAD DXF layers & STL watertight mesh',
+            active: false,
+            done: false,
+            icon: Layers,
+          },
+        ].map((item, idx) => {
+          const Icon = item.icon;
+          return (
+            <div
+              key={idx}
+              style={{
+                padding: '16px',
+                borderRadius: '8px',
+                backgroundColor: item.done ? '#FFFFFF' : item.active ? '#FFFFFF' : '#F8FBFC',
+                border: item.done ? '1px solid rgba(11,166,190,0.45)' : item.active ? '1px solid #B8C9D0' : '1px solid #D4E0E5',
+                boxShadow: item.done || item.active ? '0 2px 8px rgba(23,40,48,0.04)' : 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '12px',
+                position: 'relative'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-data)',
+                  fontWeight: 700,
+                  letterSpacing: '0.05em',
+                  color: item.done || item.active ? '#0BA6BE' : '#71838C'
+                }}>
+                  STEP {item.step}
+                </span>
+                {item.done ? (
+                  <div style={{
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(11,166,190,0.15)',
+                    color: '#0BA6BE',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Check size={13} strokeWidth={3} />
+                  </div>
+                ) : (
+                  <Icon size={16} style={{ color: item.active ? '#394B54' : '#71838C' }} />
+                )}
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#172830', marginBottom: '3px' }}>
+                  {item.title}
+                </div>
+                <div style={{ fontSize: '12px', color: '#53656E', lineHeight: 1.4 }}>
+                  {item.desc}
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-[13px] font-semibold text-[var(--g-100)] leading-snug">{item.title}</div>
-              <div className="text-[11px] text-[var(--g-400)] mt-0.5 leading-snug">{item.desc}</div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Main Grid: Upload & Controls + Live Summary Card */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
+      {/* Main Layout: Form Steps (Left) + Engineering Spec Panel (Right) */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1.65fr) minmax(320px, 1fr)',
+        gap: '24px',
+        alignItems: 'start'
+      }}>
 
-        {/* Left Column: Form Steps */}
-        <div className="flex flex-col gap-6">
+        {/* Left Column: Interactive Setup Steps */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
           {/* Error Banner */}
           {errorMsg && (
-            <div className="p-3.5 rounded-[6px] bg-[var(--surface)] border border-[rgba(244,112,94,0.4)] border-l-4 border-l-[var(--red-400)] flex items-start gap-3 shadow-sm">
-              <AlertCircle className="w-5 h-5 text-[var(--red-400)] shrink-0 mt-0.5" />
-              <div className="text-[13px] text-[var(--g-200)] flex-1 leading-snug">
-                <strong className="block text-[var(--red-400)] font-semibold mb-0.5">Input Requirement</strong>
+            <div style={{
+              padding: '14px 16px',
+              borderRadius: '8px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid rgba(244,112,94,0.4)',
+              borderLeft: '4px solid #F4705E',
+              display: 'flex',
+              alignItems: 'start',
+              gap: '12px',
+              boxShadow: '0 2px 8px rgba(244,112,94,0.08)'
+            }}>
+              <AlertCircle size={18} style={{ color: '#F4705E', flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ fontSize: '13px', color: '#394B54', lineHeight: 1.5 }}>
+                <strong style={{ display: 'block', color: '#F4705E', fontWeight: 600, marginBottom: '2px' }}>
+                  Input Requirement
+                </strong>
                 {errorMsg}
               </div>
             </div>
           )}
 
           {/* Step 1: Upload Part Image */}
-          <section className="p-5 sm:p-6 rounded-[8px] bg-[var(--surface)] border border-[var(--g-700)] shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <span className="w-7 h-7 rounded-full bg-[var(--cyan-500)] text-[var(--cyan-ink)] font-data font-bold text-[12px] flex items-center justify-center">
+          <section style={{
+            padding: '24px',
+            borderRadius: '8px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #D4E0E5',
+            boxShadow: '0 2px 10px rgba(23,40,48,0.04)',
+            position: 'relative'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  backgroundColor: '#0BA6BE',
+                  color: '#FFFFFF',
+                  fontFamily: 'var(--font-data)',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 6px rgba(11,166,190,0.3)'
+                }}>
                   1
-                </span>
+                </div>
                 <div>
-                  <h2 className="text-[17px] font-semibold text-[var(--g-100)]">Part Image</h2>
-                  <p className="text-[12px] text-[var(--g-400)]">Upload a flat-lay photo or white CAD fixture</p>
+                  <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#172830', margin: 0 }}>
+                    Part Image
+                  </h2>
+                  <p style={{ fontSize: '12px', color: '#53656E', margin: '2px 0 0 0' }}>
+                    Upload an orthographic photo, flat-lay scan, or mechanical diagram
+                  </p>
                 </div>
               </div>
+
               {hasValidFile && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-[var(--cyan-ghost)] text-[var(--cyan-400)] text-[11px] font-data font-medium border border-[rgba(44,192,212,0.3)]">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Ready
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(11,166,190,0.12)',
+                  color: '#087F95',
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-data)',
+                  fontWeight: 500,
+                  border: '1px solid rgba(11,166,190,0.3)'
+                }}>
+                  <CheckCircle2 size={12} /> Ready
                 </span>
               )}
             </div>
 
-            {/* Dropzone or Preview */}
+            {/* Benchmark Quick Pick Buttons */}
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: '6px',
+              backgroundColor: '#F8FBFC',
+              border: '1px solid #D4E0E5',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+                marginBottom: '10px'
+              }}>
+                <span style={{
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-data)',
+                  fontWeight: 600,
+                  color: '#394B54',
+                  letterSpacing: '0.05em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <Sparkles size={13} style={{ color: '#0BA6BE' }} />
+                  TRY BENCHMARK PART:
+                </span>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--font-data)', color: '#71838C' }}>
+                  Instant 1-click test geometry
+                </span>
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '8px'
+              }}>
+                {BENCHMARK_SAMPLES.map((sample) => (
+                  <button
+                    key={sample.name}
+                    type="button"
+                    disabled={isLoadingSample}
+                    onClick={() => handleLoadSample(sample)}
+                    style={{
+                      padding: '10px 12px',
+                      textAlign: 'left',
+                      borderRadius: '6px',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #D4E0E5',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#0BA6BE';
+                      e.currentTarget.style.backgroundColor = 'rgba(11,166,190,0.04)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = '#D4E0E5';
+                      e.currentTarget.style.backgroundColor = '#FFFFFF';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600, color: '#172830' }}>
+                      <span>{sample.label}</span>
+                      <ArrowRight size={11} style={{ color: '#0BA6BE' }} />
+                    </div>
+                    <div style={{ fontSize: '11px', fontFamily: 'var(--font-data)', color: '#53656E', marginTop: '3px' }}>
+                      {sample.sublabel}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dropzone or Loaded Inspection Card */}
             {!selectedFile ? (
               <div
-                className={`dropzone cursor-pointer p-8 transition-all relative rounded-[6px] ${
-                  isDragOver ? 'border-[var(--cyan-400)] bg-[var(--cyan-ghost)]' : ''
-                }`}
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
                 onDragLeave={() => setIsDragOver(false)}
@@ -203,6 +538,20 @@ export default function NewJob() {
                   e.preventDefault();
                   setIsDragOver(false);
                   handleFiles(e.dataTransfer.files);
+                }}
+                style={{
+                  position: 'relative',
+                  borderRadius: '8px',
+                  padding: '36px 20px',
+                  border: isDragOver ? '2px dashed #0BA6BE' : '2px dashed #B8C9D0',
+                  backgroundColor: isDragOver ? 'rgba(11,166,190,0.08)' : '#FAFCFD',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
               >
                 <input
@@ -212,59 +561,161 @@ export default function NewJob() {
                   onChange={(e) => handleFiles(e.target.files)}
                   accept="image/jpeg,image/png,image/webp"
                 />
-                <div className="w-12 h-12 rounded-full bg-[var(--cyan-ghost)] border border-[rgba(44,192,212,0.3)] flex items-center justify-center text-[var(--cyan-400)] mb-3">
-                  <UploadCloud className="w-6 h-6" />
+
+                {/* Crosshairs at 4 corners */}
+                <span style={{ position: 'absolute', top: '8px', left: '10px', fontSize: '12px', fontFamily: 'var(--font-data)', color: '#B8C9D0', userSelect: 'none' }}>+</span>
+                <span style={{ position: 'absolute', top: '8px', right: '10px', fontSize: '12px', fontFamily: 'var(--font-data)', color: '#B8C9D0', userSelect: 'none' }}>+</span>
+                <span style={{ position: 'absolute', bottom: '8px', left: '10px', fontSize: '12px', fontFamily: 'var(--font-data)', color: '#B8C9D0', userSelect: 'none' }}>+</span>
+                <span style={{ position: 'absolute', bottom: '8px', right: '10px', fontSize: '12px', fontFamily: 'var(--font-data)', color: '#B8C9D0', userSelect: 'none' }}>+</span>
+
+                <div style={{
+                  width: '54px',
+                  height: '54px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(11,166,190,0.1)',
+                  border: '1px solid rgba(11,166,190,0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#0BA6BE',
+                  marginBottom: '14px'
+                }}>
+                  <UploadCloud size={28} />
                 </div>
-                <div className="text-[15px] font-semibold text-[var(--g-100)] text-center mb-1">
+
+                <div style={{ fontSize: '15px', fontWeight: 600, color: '#172830', marginBottom: '4px' }}>
                   Drag & drop your part image here
                 </div>
-                <p className="text-[12px] text-[var(--g-400)] text-center mb-4">
-                  Supports PNG, JPG, or WebP up to 20MB
+                <p style={{ fontSize: '12px', color: '#53656E', maxWidth: '380px', lineHeight: 1.5, margin: '0 0 16px 0' }}>
+                  High-contrast mechanical photos on solid or white backgrounds yield sub-millimeter contour precision.
                 </p>
-                <button
-                  type="button"
-                  className="px-4 py-2 rounded-[4px] bg-[var(--g-800)] hover:bg-[var(--g-700)] text-[var(--g-100)] text-[13px] font-medium border border-[var(--g-600)] transition-colors shadow-sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                >
-                  Browse Image
-                </button>
+
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 18px',
+                  borderRadius: '4px',
+                  backgroundColor: '#EDF3F5',
+                  border: '1px solid #D4E0E5',
+                  color: '#172830',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  boxShadow: '0 1px 3px rgba(23,40,48,0.06)'
+                }}>
+                  <FileCode size={15} style={{ color: '#0BA6BE' }} />
+                  <span>Browse From Computer</span>
+                </div>
+
+                <div style={{
+                  marginTop: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-data)',
+                  color: '#71838C',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase'
+                }}>
+                  <span>PNG</span>
+                  <span>•</span>
+                  <span>JPG</span>
+                  <span>•</span>
+                  <span>WEBP</span>
+                  <span>•</span>
+                  <span>UP TO 20 MB</span>
+                </div>
               </div>
             ) : (
-              <div className="border border-[var(--g-700)] rounded-[6px] p-4 bg-[var(--g-850)] flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-16 h-16 rounded-[4px] border border-[var(--g-700)] overflow-hidden bg-white shrink-0 flex items-center justify-center">
+              <div style={{
+                border: '1px solid #D4E0E5',
+                borderRadius: '8px',
+                padding: '16px',
+                backgroundColor: '#F8FBFC',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: '240px' }}>
+                  <div style={{
+                    width: '72px',
+                    height: '72px',
+                    borderRadius: '6px',
+                    border: '1px solid #D4E0E5',
+                    backgroundColor: '#FFFFFF',
+                    overflow: 'hidden',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
                     <img
                       src={selectedFile.preview}
                       alt="Part preview"
-                      className="w-full h-full object-contain"
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
                   </div>
-                  <div className="min-w-0">
-                    <div className="font-semibold text-[14px] text-[var(--g-100)] truncate">
-                      {selectedFile.file.name}
+
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#172830', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>{selectedFile.file.name}</span>
+                      <span style={{
+                        padding: '2px 6px',
+                        borderRadius: '3px',
+                        fontSize: '10px',
+                        fontFamily: 'var(--font-data)',
+                        backgroundColor: 'rgba(11,166,190,0.12)',
+                        color: '#087F95',
+                        border: '1px solid rgba(11,166,190,0.25)'
+                      }}>
+                        LOADED
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-1 text-[11px] font-data text-[var(--g-400)]">
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '11px', fontFamily: 'var(--font-data)', color: '#53656E' }}>
                       <span>{(selectedFile.file.size / 1024).toFixed(1)} KB</span>
                       {selectedFile.width && selectedFile.height && (
                         <>
                           <span>•</span>
-                          <span className="text-[var(--cyan-400)]">{selectedFile.width} × {selectedFile.height} px</span>
+                          <span style={{ color: '#172830', fontWeight: 500 }}>{selectedFile.width} × {selectedFile.height} px</span>
+                          <span>•</span>
+                          <span style={{ color: '#087F95' }}>{(selectedFile.width / selectedFile.height).toFixed(2)}:1 Ratio</span>
                         </>
                       )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '11px', fontFamily: 'var(--font-data)', color: '#087F95' }}>
+                      <CheckCircle2 size={13} style={{ color: '#0BA6BE' }} />
+                      <span>Orthographic silhouette ready for contour extraction</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-3 py-1.5 rounded-[4px] bg-[var(--g-800)] hover:bg-[var(--g-700)] text-[var(--g-100)] text-[12px] font-medium border border-[var(--g-600)] transition-colors"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      borderRadius: '4px',
+                      backgroundColor: '#EDF3F5',
+                      border: '1px solid #D4E0E5',
+                      color: '#172830',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer'
+                    }}
                   >
-                    Change Image
+                    <RefreshCw size={12} />
+                    <span>Change</span>
                   </button>
                   <button
                     type="button"
@@ -272,54 +723,100 @@ export default function NewJob() {
                       setUiFiles([]);
                       if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
-                    className="px-3 py-1.5 rounded-[4px] text-[var(--red-400)] hover:bg-[var(--red-ghost)] text-[12px] font-medium transition-colors"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      borderRadius: '4px',
+                      backgroundColor: 'transparent',
+                      border: '1px solid transparent',
+                      color: '#F4705E',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer'
+                    }}
                   >
-                    Remove
+                    <Trash2 size={12} />
+                    <span>Remove</span>
                   </button>
                 </div>
               </div>
             )}
-
-            <div className="mt-3 flex items-center gap-2 text-[11px] text-[var(--g-400)] font-data">
-              <span className="text-[var(--cyan-400)] font-bold">PRO TIP:</span>
-              <span>For highest accuracy, use a flat part on a solid white or contrasting background.</span>
-            </div>
           </section>
 
-          {/* Step 2: Reference Dimension & Material */}
-          <section className="p-5 sm:p-6 rounded-[8px] bg-[var(--surface)] border border-[var(--g-700)] shadow-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="w-7 h-7 rounded-full bg-[var(--cyan-500)] text-[var(--cyan-ink)] font-data font-bold text-[12px] flex items-center justify-center">
+          {/* Step 2: Reference Dimension & Scale Calibration */}
+          <section style={{
+            padding: '24px',
+            borderRadius: '8px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #D4E0E5',
+            boxShadow: '0 2px 10px rgba(23,40,48,0.04)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                backgroundColor: '#0BA6BE',
+                color: '#FFFFFF',
+                fontFamily: 'var(--font-data)',
+                fontWeight: 700,
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(11,166,190,0.3)'
+              }}>
                 2
-              </span>
+              </div>
               <div>
-                <h2 className="text-[17px] font-semibold text-[var(--g-100)]">Known Dimension</h2>
-                <p className="text-[12px] text-[var(--g-400)]">
-                  Enter one real-world measurement to calibrate pixel scale to engineering units
+                <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#172830', margin: 0 }}>
+                  Known Reference Dimension
+                </h2>
+                <p style={{ fontSize: '12px', color: '#53656E', margin: '2px 0 0 0' }}>
+                  Set one known real-world measurement to calibrate pixel coordinates to precise CNC units
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-              <div className="sm:col-span-1">
-                <label className="block text-[12px] font-medium text-[var(--g-300)] mb-1.5">
-                  Measurement Type
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', fontWeight: 500, color: '#394B54', marginBottom: '6px' }}>
+                  <span>Measurement Axis</span>
+                  <span style={{ fontSize: '10px', fontFamily: 'var(--font-data)', color: '#71838C' }}>REQUIRED</span>
                 </label>
                 <select
                   value={dimLabel}
                   onChange={(e) => setDimLabel(e.target.value)}
-                  className="w-full h-10 px-3 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[4px] text-[13px] text-[var(--g-100)] focus:border-[var(--cyan-500)] focus:outline-none transition-colors"
+                  style={{
+                    width: '100%',
+                    height: '40px',
+                    padding: '0 12px',
+                    backgroundColor: '#EDF3F5',
+                    border: '1px solid #D4E0E5',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    color: '#172830',
+                    outline: 'none'
+                  }}
                 >
-                  <option value="Overall width">Overall width</option>
-                  <option value="Overall height">Overall height</option>
+                  <option value="Overall width">Overall width (X-axis)</option>
+                  <option value="Overall height">Overall height (Y-axis)</option>
                   <option value="Overall length">Overall length</option>
                   <option value="Feature dimension">Feature dimension</option>
                 </select>
               </div>
 
-              <div className="sm:col-span-1">
-                <label className="block text-[12px] font-medium text-[var(--g-300)] mb-1.5">
-                  Dimension Value <span className="text-[var(--cyan-400)]">*</span>
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', fontWeight: 500, color: '#394B54', marginBottom: '6px' }}>
+                  <span>Dimension Value</span>
+                  <span style={{ fontSize: '11px', fontFamily: 'var(--font-data)', color: '#087F95', fontWeight: 700 }}>*</span>
                 </label>
                 <input
                   type="number"
@@ -327,19 +824,42 @@ export default function NewJob() {
                   min="0.001"
                   value={dimValue}
                   onChange={(e) => setDimValue(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                  placeholder="e.g. 100"
-                  className="w-full h-10 px-3 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[4px] text-[14px] font-data text-[var(--g-100)] text-right focus:border-[var(--cyan-500)] focus:outline-none transition-colors"
+                  placeholder="e.g. 140"
+                  style={{
+                    width: '100%',
+                    height: '40px',
+                    padding: '0 12px',
+                    backgroundColor: '#EDF3F5',
+                    border: '1px solid #D4E0E5',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    fontFamily: 'var(--font-data)',
+                    color: '#172830',
+                    textAlign: 'right',
+                    outline: 'none'
+                  }}
                 />
               </div>
 
-              <div className="sm:col-span-1">
-                <label className="block text-[12px] font-medium text-[var(--g-300)] mb-1.5">
-                  Unit
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#394B54', marginBottom: '6px' }}>
+                  Engineering Unit
                 </label>
                 <select
                   value={units}
                   onChange={(e) => setUnits(e.target.value)}
-                  className="w-full h-10 px-3 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[4px] text-[13px] font-data text-[var(--g-100)] focus:border-[var(--cyan-500)] focus:outline-none transition-colors"
+                  style={{
+                    width: '100%',
+                    height: '40px',
+                    padding: '0 12px',
+                    backgroundColor: '#EDF3F5',
+                    border: '1px solid #D4E0E5',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontFamily: 'var(--font-data)',
+                    color: '#172830',
+                    outline: 'none'
+                  }}
                 >
                   {unitOptions.map(u => (
                     <option key={u.value} value={u.value}>{u.label}</option>
@@ -348,28 +868,39 @@ export default function NewJob() {
               </div>
             </div>
 
-            {/* Thickness input */}
-            <div className="pt-3 border-t border-[var(--g-700)] mt-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Extrusion Thickness Section */}
+            <div style={{
+              paddingTop: '16px',
+              borderTop: '1px solid #D4E0E5'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <div className="text-[13px] font-medium text-[var(--g-100)]">
-                    Extrusion Thickness ({units})
+                  <div style={{ fontSize: '13px', fontWeight: 500, color: '#172830', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Box size={14} style={{ color: '#0BA6BE' }} />
+                    <span>Extrusion Thickness ({units})</span>
                   </div>
-                  <div className="text-[11px] text-[var(--g-400)]">
-                    Depth used to extrude the solid 3D STL model
+                  <div style={{ fontSize: '11px', color: '#53656E', marginTop: '2px' }}>
+                    Solid Z-extrusion depth for the generated 3D STL mesh
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {[1.0, 3.0, 5.0].map((tVal) => (
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {[1.0, 2.0, 3.0, 5.0].map((tVal) => (
                     <button
                       key={tVal}
                       type="button"
                       onClick={() => setThickness(tVal)}
-                      className={`px-2.5 py-1 rounded-[3px] text-[11px] font-data border transition-colors ${
-                        thickness === tVal
-                          ? 'bg-[var(--cyan-ghost)] text-[var(--cyan-400)] border-[rgba(44,192,212,0.4)] font-bold'
-                          : 'bg-[var(--g-800)] text-[var(--g-300)] border-[var(--g-700)] hover:text-[var(--g-100)]'
-                      }`}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontFamily: 'var(--font-data)',
+                        border: thickness === tVal ? '1px solid rgba(11,166,190,0.45)' : '1px solid #D4E0E5',
+                        backgroundColor: thickness === tVal ? 'rgba(11,166,190,0.12)' : '#EDF3F5',
+                        color: thickness === tVal ? '#087F95' : '#394B54',
+                        fontWeight: thickness === tVal ? 700 : 500,
+                        cursor: 'pointer'
+                      }}
                     >
                       {tVal} {units}
                     </button>
@@ -380,120 +911,303 @@ export default function NewJob() {
                     min="0.1"
                     value={thickness}
                     onChange={(e) => setThickness(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                    className="w-20 h-8 px-2 bg-[var(--g-800)] border border-[var(--g-700)] rounded-[4px] text-[12px] font-data text-[var(--g-100)] text-right focus:border-[var(--cyan-500)] focus:outline-none"
+                    style={{
+                      width: '70px',
+                      height: '32px',
+                      padding: '0 8px',
+                      backgroundColor: '#EDF3F5',
+                      border: '1px solid #D4E0E5',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontFamily: 'var(--font-data)',
+                      color: '#172830',
+                      textAlign: 'right',
+                      outline: 'none'
+                    }}
                   />
                 </div>
               </div>
             </div>
+
+            {/* Live Scale Calibration Preview Feedback */}
+            {selectedFile && estimatedScale && (
+              <div style={{
+                marginTop: '16px',
+                padding: '12px 14px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(11,166,190,0.06)',
+                border: '1px solid rgba(11,166,190,0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Sliders size={14} style={{ color: '#0BA6BE' }} />
+                  <span style={{ fontSize: '12px', color: '#172830' }}>
+                    Calculated Scale Factor:
+                  </span>
+                  <span style={{ fontSize: '13px', fontFamily: 'var(--font-data)', fontWeight: 700, color: '#087F95' }}>
+                    1 px ≈ {estimatedScale.toFixed(4)} {units}
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', fontFamily: 'var(--font-data)', color: '#53656E' }}>
+                  {(1 / estimatedScale).toFixed(2)} px/{units} • Orthographic Projection
+                </div>
+              </div>
+            )}
           </section>
 
-          {/* Step 3: Main Call To Action */}
-          <section className="p-5 rounded-[8px] bg-[var(--surface)] border border-[var(--g-700)] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Action Card: Generate CAD Drawing */}
+          <div style={{
+            padding: '20px 24px',
+            borderRadius: '8px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #D4E0E5',
+            boxShadow: '0 2px 10px rgba(23,40,48,0.04)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap'
+          }}>
             <div>
-              <div className="text-[14px] font-semibold text-[var(--g-100)]">
-                Ready to Generate CAD
+              <div style={{ fontSize: '15px', fontWeight: 600, color: '#172830', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={16} style={{ color: '#0BA6BE' }} />
+                <span>Ready for Geometric Reconstruction</span>
               </div>
-              <div className="text-[12px] text-[var(--g-400)] mt-0.5">
-                Produces DXF (2D drawing with CUT/HOLES) & STL (watertight mesh)
+              <div style={{ fontSize: '12px', color: '#53656E', marginTop: '4px' }}>
+                Autonomous contour extraction (<code style={{ color: '#087F95', fontWeight: 600 }}>CUT</code>) and circle hole primitives (<code style={{ color: '#087F95', fontWeight: 600 }}>HOLES</code>).
               </div>
             </div>
 
-            <Button
-              variant="primary"
+            <button
+              type="button"
               onClick={() => createMutation.mutate()}
               disabled={!canSubmit}
-              isLoading={createMutation.isPending}
-              loadingText="Initializing..."
-              className="min-w-[180px] h-11 px-6 text-[14px] font-semibold shadow-md flex items-center justify-center gap-2"
+              style={{
+                height: '44px',
+                padding: '0 24px',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                backgroundColor: canSubmit ? '#0BA6BE' : '#D4E0E5',
+                color: canSubmit ? '#FFFFFF' : '#71838C',
+                border: 'none',
+                cursor: canSubmit ? 'pointer' : 'not-allowed',
+                boxShadow: canSubmit ? '0 4px 12px rgba(11,166,190,0.35)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
             >
-              <span>Generate CAD Drawing</span>
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-          </section>
+              {createMutation.isPending ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  <span>Processing Geometry...</span>
+                </>
+              ) : (
+                <>
+                  <span>Generate CAD Drawing</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </div>
 
         </div>
 
-        {/* Right Column: CAD Output Spec Preview */}
-        <aside className="p-5 rounded-[8px] bg-[var(--surface)] border border-[var(--g-700)] shadow-sm lg:sticky lg:top-20 flex flex-col gap-5">
-          <div className="flex items-center gap-2 pb-3 border-b border-[var(--g-700)]">
-            <Layers3 className="w-4 h-4 text-[var(--cyan-400)]" />
-            <h3 className="font-semibold text-[14px] text-[var(--g-100)]">Export Deliverables</h3>
+        {/* Right Column: Engineering Spec & Deliverables Panel */}
+        <aside style={{
+          padding: '24px',
+          borderRadius: '8px',
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #D4E0E5',
+          boxShadow: '0 2px 10px rgba(23,40,48,0.04)',
+          position: 'sticky',
+          top: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '14px', borderBottom: '1px solid #D4E0E5' }}>
+            <Layers3 size={16} style={{ color: '#0BA6BE' }} />
+            <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#172830', margin: 0 }}>
+              Production Deliverables
+            </h3>
           </div>
 
-          {/* Deliverables List */}
-          <div className="space-y-3 text-[13px]">
-            <div className="p-3 rounded-[6px] bg-[var(--g-850)] border border-[var(--g-700)]">
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-[var(--g-100)] flex items-center gap-1.5">
-                  <FileCode className="w-4 h-4 text-[var(--cyan-400)]" /> DXF 2D Drawing
+          {/* Deliverables Cards */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: '6px',
+              backgroundColor: '#F8FBFC',
+              border: '1px solid #D4E0E5'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#172830', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FileCode size={15} style={{ color: '#0BA6BE' }} />
+                  <span>AutoCAD DXF Drawing</span>
                 </span>
-                <span className="text-[10px] font-data px-1.5 py-0.5 rounded bg-[var(--cyan-ghost)] text-[var(--cyan-400)] border border-[rgba(44,192,212,0.2)]">
-                  CAM Ready
+                <span style={{
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-data)',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  backgroundColor: 'rgba(11,166,190,0.1)',
+                  color: '#087F95',
+                  border: '1px solid rgba(11,166,190,0.25)'
+                }}>
+                  R2000+ CAM
                 </span>
               </div>
-              <p className="text-[11px] text-[var(--g-400)] leading-normal">
-                Layered vector profile: <code className="text-[var(--g-300)]">CUT</code> (outer loop) & <code className="text-[var(--g-300)]">HOLES</code> (internal features).
+              <p style={{ fontSize: '11px', color: '#53656E', lineHeight: 1.5, margin: 0 }}>
+                Layer-separated vector entities: <span style={{ fontFamily: 'var(--font-data)', color: '#087F95', fontWeight: 600 }}>CUT</span> (outer polygon loop) & <span style={{ fontFamily: 'var(--font-data)', color: '#087F95', fontWeight: 600 }}>HOLES</span> (exact circle primitives with radius & center).
               </p>
             </div>
 
-            <div className="p-3 rounded-[6px] bg-[var(--g-850)] border border-[var(--g-700)]">
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-[var(--g-100)] flex items-center gap-1.5">
-                  <Box className="w-4 h-4 text-[var(--cyan-400)]" /> STL 3D Model
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: '6px',
+              backgroundColor: '#F8FBFC',
+              border: '1px solid #D4E0E5'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#172830', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Box size={15} style={{ color: '#0BA6BE' }} />
+                  <span>Watertight STL 3D Mesh</span>
                 </span>
-                <span className="text-[10px] font-data px-1.5 py-0.5 rounded bg-[var(--g-800)] text-[var(--g-300)] border border-[var(--g-700)]">
-                  3D Print
+                <span style={{
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-data)',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  backgroundColor: '#EDF3F5',
+                  color: '#53656E',
+                  border: '1px solid #D4E0E5'
+                }}>
+                  3D PRINTING
                 </span>
               </div>
-              <p className="text-[11px] text-[var(--g-400)] leading-normal">
-                Watertight extruded solid with subtractive hole geometry.
+              <p style={{ fontSize: '11px', color: '#53656E', lineHeight: 1.5, margin: 0 }}>
+                Binary STL extrusion of the outer boundary with subtractive cylindrical hole cutouts at thickness {thickness || 0} {units}.
               </p>
             </div>
           </div>
 
-          {/* Validation Checklist */}
-          <div className="pt-2 border-t border-[var(--g-700)] space-y-2">
-            <div className="text-[11px] font-data uppercase tracking-wider text-[var(--g-400)] mb-1">
-              Readiness Checklist
+          {/* Live Validation Checklist */}
+          <div style={{
+            paddingTop: '14px',
+            borderTop: '1px solid #D4E0E5',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '11px',
+              fontFamily: 'var(--font-data)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#53656E'
+            }}>
+              <span>Readiness Checklist</span>
+              <span style={{ color: '#087F95', fontWeight: 700 }}>
+                {[hasValidFile, hasValidDimension, hasValidThickness].filter(Boolean).length}/3 Ready
+              </span>
             </div>
 
-            <div className="flex items-center gap-2 text-[12px]">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' }}>
               {hasValidFile ? (
-                <Check className="w-3.5 h-3.5 text-[var(--cyan-400)]" />
+                <div style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(11,166,190,0.15)',
+                  color: '#0BA6BE',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Check size={11} strokeWidth={3} />
+                </div>
               ) : (
-                <div className="w-3.5 h-3.5 rounded-full border border-[var(--g-600)]" />
+                <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: '1px solid #B8C9D0', flexShrink: 0 }} />
               )}
-              <span className={hasValidFile ? 'text-[var(--g-200)]' : 'text-[var(--g-500)]'}>
-                Part image uploaded
+              <span style={{ color: hasValidFile ? '#172830' : '#71838C', fontWeight: hasValidFile ? 500 : 400 }}>
+                {hasValidFile ? `Image: ${selectedFile.file.name}` : 'Upload part image'}
               </span>
             </div>
 
-            <div className="flex items-center gap-2 text-[12px]">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' }}>
               {hasValidDimension ? (
-                <Check className="w-3.5 h-3.5 text-[var(--cyan-400)]" />
+                <div style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(11,166,190,0.15)',
+                  color: '#0BA6BE',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Check size={11} strokeWidth={3} />
+                </div>
               ) : (
-                <div className="w-3.5 h-3.5 rounded-full border border-[var(--g-600)]" />
+                <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: '1px solid #B8C9D0', flexShrink: 0 }} />
               )}
-              <span className={hasValidDimension ? 'text-[var(--g-200)]' : 'text-[var(--g-500)]'}>
-                Reference scale dimension set ({dimValue || 0} {units})
+              <span style={{ color: hasValidDimension ? '#172830' : '#71838C', fontWeight: hasValidDimension ? 500 : 400 }}>
+                {hasValidDimension ? `Reference: ${dimValue} ${units} (${dimLabel})` : 'Set known dimension'}
               </span>
             </div>
 
-            <div className="flex items-center gap-2 text-[12px]">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' }}>
               {hasValidThickness ? (
-                <Check className="w-3.5 h-3.5 text-[var(--cyan-400)]" />
+                <div style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(11,166,190,0.15)',
+                  color: '#0BA6BE',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Check size={11} strokeWidth={3} />
+                </div>
               ) : (
-                <div className="w-3.5 h-3.5 rounded-full border border-[var(--g-600)]" />
+                <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: '1px solid #B8C9D0', flexShrink: 0 }} />
               )}
-              <span className={hasValidThickness ? 'text-[var(--g-200)]' : 'text-[var(--g-500)]'}>
-                Extrusion thickness set ({thickness || 0} {units})
+              <span style={{ color: hasValidThickness ? '#172830' : '#71838C', fontWeight: hasValidThickness ? 500 : 400 }}>
+                {hasValidThickness ? `Thickness: ${thickness} ${units}` : 'Set extrusion thickness'}
               </span>
             </div>
           </div>
 
-          <div className="p-3 rounded-[4px] bg-[var(--g-850)] border border-[var(--g-700)] text-[11px] text-[var(--g-400)] leading-relaxed">
-            <strong className="text-[var(--g-200)] block mb-0.5">Engineering Note</strong>
-            CADVision extracts contours using classical computer vision. Verify critical tolerances before machining.
+          {/* Engineering Note Card */}
+          <div style={{
+            padding: '12px 14px',
+            borderRadius: '6px',
+            backgroundColor: '#F8FBFC',
+            border: '1px solid #D4E0E5',
+            fontSize: '11px',
+            color: '#53656E',
+            lineHeight: 1.5
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#172830', fontWeight: 600, marginBottom: '4px' }}>
+              <HelpCircle size={13} style={{ color: '#0BA6BE' }} />
+              <span>Tolerance & Metrology</span>
+            </div>
+            CADVision AI uses contour subpixel fitting and Hough circle transform. For CNC tolerance verification, check critical hole centers on the CAD workspace canvas before sending to milling.
           </div>
         </aside>
 
