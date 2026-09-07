@@ -268,52 +268,94 @@ export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, u
 
       {/* Top Left: Geometry HUD Legend */}
       {geomMetrics && (
-        <div className={`absolute top-3 left-3 z-20 flex flex-col gap-1.5 p-2.5 rounded-[4px] border font-data text-[11px] shadow-sm pointer-events-none ${
-          isBlueprint
-            ? 'bg-[rgba(14,22,26,0.85)] border-[rgba(56,189,248,0.25)] text-[var(--g-200)]'
-            : 'bg-[rgba(255,255,255,0.9)] border-[var(--g-700)] text-[var(--g-100)]'
-        }`}>
-          <div className="flex items-center gap-2 font-semibold pb-1 border-b border-current/10 uppercase tracking-wider text-[10px]">
-            <Layers className="w-3.5 h-3.5 text-[var(--cyan-500)]" />
+        <div
+          style={{
+            position: 'absolute',
+            top: '12px',
+            left: '14px',
+            zIndex: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            backgroundColor: isBlueprint ? 'rgba(14,22,26,0.92)' : 'rgba(255,255,255,0.95)',
+            border: isBlueprint ? '1px solid rgba(56,189,248,0.3)' : '1px solid #D4E0E5',
+            boxShadow: '0 2px 8px rgba(23,40,48,0.06)',
+            pointerEvents: 'none',
+            fontSize: '11px',
+            fontFamily: 'var(--font-data)'
+          }}
+        >
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontWeight: 700,
+            paddingBottom: '4px',
+            borderBottom: isBlueprint ? '1px solid rgba(56,189,248,0.2)' : '1px solid #EDF3F5',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            fontSize: '10px',
+            color: '#087F95'
+          }}>
+            <Layers size={13} style={{ color: '#0BA6BE' }} />
             <span>Extracted Geometry</span>
           </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-[var(--g-400)]">Extents:</span>
-            <span className="font-medium tabular-nums">{geomMetrics.width.toFixed(2)} × {geomMetrics.height.toFixed(2)} {effectiveUnits}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <span style={{ color: '#53656E' }}>Extents:</span>
+            <span style={{ fontWeight: 600, color: isBlueprint ? '#E0F2FE' : '#172830' }}>
+              {geomMetrics.width.toFixed(2)} × {geomMetrics.height.toFixed(2)} {effectiveUnits}
+            </span>
           </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="flex items-center gap-1">
-              <span className={`w-2 h-2 rounded-full ${isBlueprint ? 'bg-[#38BDF8]' : 'bg-[#1B1917]'}`} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#53656E' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isBlueprint ? '#38BDF8' : '#172830' }} />
               Outer Boundary:
             </span>
-            <span className="font-medium tabular-nums">{geomMetrics.outerCount} vertices</span>
+            <span style={{ fontWeight: 600, color: isBlueprint ? '#E0F2FE' : '#172830' }}>
+              {geomMetrics.outerCount} vertices
+            </span>
           </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#E11D48]" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#53656E' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#E11D48' }} />
               Internal Holes:
             </span>
-            <span className="font-medium text-[#E11D48] tabular-nums font-semibold">{geomMetrics.holeCount} detected</span>
+            <span style={{ fontWeight: 700, color: '#E11D48' }}>
+              {geomMetrics.holeCount} detected
+            </span>
           </div>
         </div>
       )}
 
       {/* Top Right: Interactive CAD Floating Toolbar */}
-      <div className={`absolute top-3 right-3 z-30 flex items-center gap-1 p-1 rounded-[6px] border shadow-md ${
-        isBlueprint
-          ? 'bg-[rgba(14,22,26,0.9)] border-[rgba(56,189,248,0.3)]'
-          : 'bg-white border-[var(--g-700)]'
-      }`}>
+      <div
+        style={{
+          position: 'absolute',
+          top: '12px',
+          right: '14px',
+          zIndex: 30,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '4px 8px',
+          borderRadius: '6px',
+          backgroundColor: isBlueprint ? 'rgba(14,22,26,0.92)' : '#FFFFFF',
+          border: isBlueprint ? '1px solid rgba(56,189,248,0.3)' : '1px solid #D4E0E5',
+          boxShadow: '0 2px 8px rgba(23,40,48,0.08)'
+        }}
+      >
         {/* Zoom Out */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             setScale(prev => Math.max(0.1, prev * 0.8));
           }}
-          className="w-7 h-7 flex items-center justify-center rounded hover:bg-current/10 transition-colors text-[var(--g-300)] hover:text-[var(--g-100)]"
+          style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', background: 'none', cursor: 'pointer', color: '#53656E' }}
           title="Zoom Out"
         >
-          <ZoomOut className="w-3.5 h-3.5" />
+          <ZoomOut size={14} />
         </button>
 
         {/* Zoom Reset / Current Scale */}
@@ -322,7 +364,7 @@ export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, u
             e.stopPropagation();
             handleReset();
           }}
-          className="px-2 h-7 font-data text-[11px] font-medium flex items-center justify-center rounded hover:bg-current/10 transition-colors text-[var(--g-300)] hover:text-[var(--g-100)]"
+          style={{ height: '28px', padding: '0 8px', fontFamily: 'var(--font-data)', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', background: 'none', cursor: 'pointer', color: '#172830' }}
           title="Reset Zoom to Fit"
         >
           {initialState ? `${Math.round((scale / initialState.scale) * 100)}%` : '100%'}
@@ -334,13 +376,13 @@ export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, u
             e.stopPropagation();
             setScale(prev => Math.min(20000, prev * 1.25));
           }}
-          className="w-7 h-7 flex items-center justify-center rounded hover:bg-current/10 transition-colors text-[var(--g-300)] hover:text-[var(--g-100)]"
+          style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', background: 'none', cursor: 'pointer', color: '#53656E' }}
           title="Zoom In"
         >
-          <ZoomIn className="w-3.5 h-3.5" />
+          <ZoomIn size={14} />
         </button>
 
-        <div className="w-[1px] h-4 bg-current/20 mx-0.5" />
+        <div style={{ width: '1px', height: '16px', backgroundColor: '#D4E0E5', margin: '0 2px' }} />
 
         {/* Fit to Screen */}
         <button
@@ -348,10 +390,10 @@ export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, u
             e.stopPropagation();
             fitToScreen();
           }}
-          className="w-7 h-7 flex items-center justify-center rounded hover:bg-current/10 transition-colors text-[var(--g-300)] hover:text-[var(--g-100)]"
+          style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', background: 'none', cursor: 'pointer', color: '#53656E' }}
           title="Fit to Screen"
         >
-          <Maximize2 className="w-3.5 h-3.5" />
+          <Maximize2 size={14} />
         </button>
 
         {/* Reset Pan */}
@@ -360,13 +402,13 @@ export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, u
             e.stopPropagation();
             handleReset();
           }}
-          className="w-7 h-7 flex items-center justify-center rounded hover:bg-current/10 transition-colors text-[var(--g-300)] hover:text-[var(--g-100)]"
+          style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', background: 'none', cursor: 'pointer', color: '#53656E' }}
           title="Center Drawing"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
+          <RotateCcw size={14} />
         </button>
 
-        <div className="w-[1px] h-4 bg-current/20 mx-0.5" />
+        <div style={{ width: '1px', height: '16px', backgroundColor: '#D4E0E5', margin: '0 2px' }} />
 
         {/* Toggle Vertex Points */}
         <button
@@ -374,15 +416,25 @@ export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, u
             e.stopPropagation();
             setShowPoints(!showPoints);
           }}
-          className={`px-2 h-7 font-data text-[11px] font-medium flex items-center gap-1 rounded transition-colors ${
-            showPoints
-              ? 'bg-[var(--cyan-500)] text-white'
-              : 'text-[var(--g-400)] hover:bg-current/10'
-          }`}
+          style={{
+            height: '28px',
+            padding: '0 8px',
+            fontFamily: 'var(--font-data)',
+            fontSize: '11px',
+            fontWeight: 500,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            borderRadius: '4px',
+            border: showPoints ? '1px solid rgba(11,166,190,0.4)' : '1px solid transparent',
+            backgroundColor: showPoints ? 'rgba(11,166,190,0.12)' : 'transparent',
+            color: showPoints ? '#087F95' : '#53656E',
+            cursor: 'pointer'
+          }}
           title="Toggle Contour Points"
         >
-          <Sparkles className="w-3 h-3" />
-          <span className="hidden sm:inline">Vertices</span>
+          <Sparkles size={12} />
+          <span>Vertices</span>
         </button>
 
         {/* Toggle Dimensions */}
@@ -391,15 +443,25 @@ export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, u
             e.stopPropagation();
             setShowDimensions(!showDimensions);
           }}
-          className={`px-2 h-7 font-data text-[11px] font-medium flex items-center gap-1 rounded transition-colors ${
-            showDimensions
-              ? 'bg-[var(--cyan-500)] text-white'
-              : 'text-[var(--g-400)] hover:bg-current/10'
-          }`}
+          style={{
+            height: '28px',
+            padding: '0 8px',
+            fontFamily: 'var(--font-data)',
+            fontSize: '11px',
+            fontWeight: 500,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            borderRadius: '4px',
+            border: showDimensions ? '1px solid rgba(11,166,190,0.4)' : '1px solid transparent',
+            backgroundColor: showDimensions ? 'rgba(11,166,190,0.12)' : 'transparent',
+            color: showDimensions ? '#087F95' : '#53656E',
+            cursor: 'pointer'
+          }}
           title="Toggle Dimensions"
         >
-          <Ruler className="w-3 h-3" />
-          <span className="hidden sm:inline">Dims</span>
+          <Ruler size={12} />
+          <span>Dims</span>
         </button>
 
         {/* Theme Toggle: Blueprint vs Paper */}
@@ -408,11 +470,21 @@ export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, u
             e.stopPropagation();
             setTheme(prev => prev === 'paper' ? 'blueprint' : 'paper');
           }}
-          className={`px-2 h-7 font-data text-[11px] font-medium flex items-center gap-1 rounded transition-colors ${
-            isBlueprint
-              ? 'bg-[rgba(56,189,248,0.2)] text-[var(--cyan-400)] border border-[rgba(56,189,248,0.4)]'
-              : 'text-[var(--g-400)] hover:bg-current/10'
-          }`}
+          style={{
+            height: '28px',
+            padding: '0 8px',
+            fontFamily: 'var(--font-data)',
+            fontSize: '11px',
+            fontWeight: 500,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            borderRadius: '4px',
+            border: '1px solid #D4E0E5',
+            backgroundColor: isBlueprint ? 'rgba(56,189,248,0.15)' : '#EDF3F5',
+            color: isBlueprint ? '#38BDF8' : '#394B54',
+            cursor: 'pointer'
+          }}
           title="Toggle Blueprint / Paper Mode"
         >
           <span>{isBlueprint ? 'Blueprint' : 'Paper'}</span>
@@ -420,23 +492,37 @@ export default function DrawingSheet({ jobId, drawing: drawingProp, createdAt, u
       </div>
 
       {/* Bottom Left: Live Cursor CAD Coordinates Readout */}
-      <div className={`absolute bottom-3 left-3 z-20 flex items-center gap-3 px-3 py-1.5 rounded-[4px] border font-data text-[11px] shadow-sm pointer-events-none ${
-        isBlueprint
-          ? 'bg-[rgba(14,22,26,0.85)] border-[rgba(56,189,248,0.25)] text-[var(--cyan-300)]'
-          : 'bg-[rgba(255,255,255,0.92)] border-[var(--g-700)] text-[var(--g-300)]'
-      }`}>
-        <div className="flex items-center gap-1.5 text-[10px] text-[var(--g-400)] uppercase tracking-wider">
-          <MousePointer className="w-3 h-3" />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '12px',
+          left: '14px',
+          zIndex: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '6px 12px',
+          borderRadius: '4px',
+          backgroundColor: isBlueprint ? 'rgba(14,22,26,0.92)' : 'rgba(255,255,255,0.95)',
+          border: isBlueprint ? '1px solid rgba(56,189,248,0.3)' : '1px solid #D4E0E5',
+          boxShadow: '0 2px 8px rgba(23,40,48,0.06)',
+          pointerEvents: 'none',
+          fontSize: '11px',
+          fontFamily: 'var(--font-data)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: '#71838C', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <MousePointer size={12} />
           <span>Cursor:</span>
         </div>
         {cursorCad ? (
-          <div className="font-semibold tabular-nums flex items-center gap-2">
+          <div style={{ fontWeight: 600, color: isBlueprint ? '#38BDF8' : '#172830', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>X: {cursorCad.x.toFixed(2)} {effectiveUnits}</span>
-            <span className="opacity-40">|</span>
+            <span style={{ opacity: 0.3 }}>|</span>
             <span>Y: {cursorCad.y.toFixed(2)} {effectiveUnits}</span>
           </div>
         ) : (
-          <span className="text-[var(--g-500)] italic">Hover canvas to inspect</span>
+          <span style={{ color: '#71838C', fontStyle: 'italic' }}>Hover canvas to inspect</span>
         )}
       </div>
 
