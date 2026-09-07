@@ -55,7 +55,7 @@ def calibrate(features: dict, known_dimensions: list, units: str) -> dict:
         
     scale_factor = scale_x
     x_label = "Overall Length" if x_dimension and "length" in x_dimension["label"].lower() else "Overall Width"
-    y_label = "Overall Height" if y_dimension else "Overall Width"
+    y_label = "Overall Height"
     measurements = [
         {"id": "dim-1", "label": x_label, "value": pixel_width * scale_x, "level": "measured" if x_dimension else "estimated", "units": units, "source": "user_known" if x_dimension else "inferred", "glyph": "●" if x_dimension else "◐"},
         {"id": "dim-2", "label": y_label, "value": pixel_height * scale_y, "level": "measured" if y_dimension else "estimated", "units": units, "source": "user_known" if y_dimension else "inferred", "glyph": "●" if y_dimension else "◐"}

@@ -401,7 +401,7 @@ export default function Workspace() {
             )}
           </div>
 
-          <MeasurementsList status={status} />
+          <MeasurementsList status={status} drawing={drawing} />
         </div>
 
         {/* Safety Note */}
